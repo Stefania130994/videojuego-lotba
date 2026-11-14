@@ -154,8 +154,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Lotba.Game::Lotba.Game.ArtPreviewController
   mode: 1
-  zone: {fileID: 11400000, guid: bdb8c39df2c344ea8c01000000000015, type: 2}
-  route: {fileID: 11400000, guid: 29fbf8296c98454bb8eebf136280b72a, type: 2}
+  zone: {fileID: 11400000, guid: bdb8c39df2c344ea8c0100000000002a, type: 2}
+  route: {fileID: 11400000, guid: 9e0aa7f659574c54bd4eed216afff3f5, type: 2}
   module: {fileID: 8444432085023419656, guid: a3ea240dcfd0d0f41bd41afc56e88919, type: 3}
   speed: 22
   showRider: 1

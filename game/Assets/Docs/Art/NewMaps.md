@@ -30,14 +30,16 @@ Usá **Zone Backdrop** del MapDefinition para fondos que acompañan a todo un tr
 
 Podés ensanchar el paisaje lateral bajo **Art** para sumar lagunas, senderos secundarios o arboledas a distintas distancias. Conservá los 12 m longitudinales, los conectores, la pista de 9 m y la escala del módulo raíz. Alineá el perfil lateral en los bordes que deban empalmar. Revisá los extremos en modo Zone y los cambios de ancho entre barrios en modo Route.
 
-Para pasar un hito, activá **Pass Landmark** en su sección de ruta y ajustá **Landmark Lateral Offset** para que quede fuera de la pista. **Landmark Distance** define cuántos metros desde el inicio de la sección está el hito. Probá la aproximación y la salida en modo Route.
+Cada hito entra centrado desde el horizonte y mantiene la distancia de su zona mientras la recorrés. Si le sigue una transición, se aleja hacia la niebla durante ese tramo y se oculta al terminarlo. Si el cambio de zona es directo, se aleja durante el último módulo. En una zona final infinita, queda al frente.
+
+Cuando dos zonas consecutivas tienen hitos, el primero se retira durante la primera parte del tramo de salida. Después de un intervalo con el horizonte despejado, el siguiente aparece desde la niebla y llega a su distancia habitual al entrar a su zona. Si solo hay un hito, conserva su entrada o salida habitual.
 
 Un hito es un prefab que sirve de referencia visual al frente del recorrido, como el monumento del Obelisco. Se asigna por zona y se instancia una vez por cada sección que lo usa.
 
 1. Guardá el modelo como prefab en `Maps/Zones/<Zona>/Prefabs/Landmarks`. Usá un pivote en la base y centrá el modelo respecto a ese pivote.
 2. Abrí el archivo **MapDefinition** del barrio y arrastrá el prefab al campo **Landmark**. El ejemplo del juego es `Maps/Zones/Obelisco/Zone_Obelisco.asset`, que referencia `Maps/Zones/Obelisco/Prefabs/Landmarks/Landmark_Obelisco.prefab`.
 3. Ajustá **Landmark Distance** en metros. En Obelisco vale **115 m**. El hito comienza a esa distancia por delante del inicio de su sección. Al acercarte, se mantiene como mínimo a esa distancia frente al ciclista. Revisá que la niebla y el encuadre permitan verlo.
-4. Para modificar su forma, escala o material, abrí el prefab. Para desplazar visualmente el modelo a un costado o en altura, mové un hijo dentro del prefab. El sistema coloca la raíz centrada en X y a nivel del piso.
+4. Para modificar su forma, escala o material, abrí el prefab. El sistema coloca la raíz centrada en X y a nivel del piso. Los hitos conservan su eje al aplicar la curva visual de la pista.
 5. Guardá y revisá en ArtPreview con **Route** para observar la aproximación desde otra zona. Para quitar el hito, dejá **Landmark** vacío en el MapDefinition.
 
 ## Crear un recorrido

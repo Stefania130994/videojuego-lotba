@@ -15,9 +15,6 @@ namespace Lotba.Game
         [SerializeField] private bool transition;
         [Tooltip("Visual turn when approaching this transition section.")]
         [SerializeField] private TransitionTurn transitionTurn;
-        [Tooltip("Place this section's landmark at a fixed route distance so the rider passes it.")]
-        [SerializeField] private bool passLandmark;
-        [SerializeField] private float landmarkLateralOffset;
         [Tooltip("Section whose length defines the backdrop exit interval.")]
         [SerializeField] private BackdropExitSection backdropExitSection;
         [Tooltip("Normalized start and end of the exit within the selected section.")]
@@ -26,8 +23,6 @@ namespace Lotba.Game
         public int ModuleCount => moduleCount;
         public bool Transition => transition;
         public TransitionTurn Turn => transitionTurn;
-        public bool PassLandmark => passLandmark;
-        public float LandmarkLateralOffset => landmarkLateralOffset;
         public BackdropExitSection BackdropExit => backdropExitSection;
         public Vector2 BackdropExitRange => backdropExitRange;
 #if UNITY_EDITOR

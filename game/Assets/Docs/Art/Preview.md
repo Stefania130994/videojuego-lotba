@@ -29,6 +29,8 @@ Elegí **Zone** y asigná el `MapDefinition` del barrio, por ejemplo `Zone_Reser
 
 Usá **Route_LaBocaToObelisco** en modo Route para revisar el trayecto de La Boca al Obelisco, incluido el giro de la transición y el cambio de ambiente.
 
+**ArtPreview** abre en modo **Route** con **Route_ReservaToPalermo**, que pasa por Reserva, La Boca, Obelisco y Palermo. Usá **Route_ObeliscoToPalermo** para revisar más rápido el recambio de hitos (108–144 m). El Obelisco se aleja centrado hacia la niebla y el Planetario aparece centrado desde el horizonte.
+
 **Speed** usa metros por segundo: 22 m/s equivalen a 79,2 km/h. Se puede ajustar durante Play. Show Rider, Show Gems y Show Obstacles se pueden cambiar durante Play, incluso con la reproducción pausada. Afectan también a los objetos presentes; los elementos ocultos siguen simulándose y reciclando sus instancias. Permiten limpiar la imagen para estudiar fachadas o revisar la escala con tráfico. Detener y volver a entrar en Play después de cambiar el modo o las referencias de contenido.
 
 ## Referencias internas

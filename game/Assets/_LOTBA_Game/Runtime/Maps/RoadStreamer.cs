@@ -22,7 +22,13 @@ namespace Lotba.Game
         private readonly Dictionary<Renderer, Material[]> bendSources = new Dictionary<Renderer, Material[]>();
         private static readonly int DepthBend = Shader.PropertyToID("_LotbaDepthBend");
         private sealed class Slot { public int Index = int.MinValue; public RoadModule Source, View; }
-        private sealed class LandmarkView { public Transform View; public float Start, Offset, Lateral; public bool Pass; }
+        private sealed class LandmarkView
+        {
+            public Transform View;
+            public float Start, Offset;
+            public float RevealStart = float.NegativeInfinity;
+            public Vector2 RetreatInterval;
+        }
         private sealed class BackdropView { public Transform View; public float Start, PassDistance; public Vector2 ExitInterval; }
         public RouteDefinition Route => route;
         private bool UsesLinearFog => RenderSettings.fog && RenderSettings.fogMode == FogMode.Linear;
@@ -65,9 +71,34 @@ namespace Lotba.Game
                 if (section.Map.Landmark != null)
                 {
                     Transform landmark = Instantiate(section.Map.Landmark, transform).transform;
-                    RegisterBendRenderers(landmark);
-                    landmarks.Add(new LandmarkView { View = landmark, Start = start, Offset = section.Map.LandmarkDistance,
-                        Lateral = section.LandmarkLateralOffset, Pass = section.PassLandmark });
+                    var landmarkView = new LandmarkView { View = landmark, Start = start, Offset = section.Map.LandmarkDistance };
+                    if (section.ModuleCount > 0)
+                    {
+                        float transitionStart = start + section.ModuleCount * RoadStandard.ModuleLength;
+                        RouteSection next = route.Sections[sectionIndex + 1];
+                        float transitionLength = next.Transition
+                            ? next.ModuleCount * RoadStandard.ModuleLength : RoadStandard.ModuleLength;
+                        if (!next.Transition) transitionStart -= transitionLength;
+                        landmarkView.RetreatInterval = new Vector2(transitionStart, transitionStart + transitionLength);
+                    }
+                    else
+                    {
+                        landmarkView.RetreatInterval = Vector2.one * float.PositiveInfinity;
+                    }
+                    if (landmarks.Count > 0)
+                    {
+                        LandmarkView previous = landmarks[landmarks.Count - 1];
+                        Vector2 exit = previous.RetreatInterval;
+                        if (exit.y == start)
+                        {
+                            // Reserve a stretch of empty horizon between consecutive landmarks.
+                            // Keep the retreat brief even on longer transitions.
+                            previous.RetreatInterval.y = Mathf.Min(
+                                Mathf.Lerp(exit.x, exit.y, .33f), exit.x + 2f * RoadStandard.ModuleLength);
+                            landmarkView.RevealStart = Mathf.Lerp(exit.x, exit.y, .6f);
+                        }
+                    }
+                    landmarks.Add(landmarkView);
                 }
                 if (section.Map.ZoneBackdrop != null)
                 {
@@ -138,8 +169,19 @@ namespace Lotba.Game
             }
             foreach (var landmark in landmarks)
             {
-                float z = landmark.Start + landmark.Offset - distance;
-                landmark.View.localPosition = new Vector3(landmark.Lateral, 0, landmark.Pass ? z : Mathf.Max(landmark.Offset, z));
+                Vector2 interval = landmark.RetreatInterval;
+                float progress = distance > interval.x ? Mathf.InverseLerp(interval.x, interval.y, distance) : 0f;
+                float hiddenDepth = Mathf.Max(landmark.Offset, worldCamera.farClipPlane + 24f);
+                float z = Mathf.Max(0f, landmark.Start - distance)
+                    + Mathf.SmoothStep(landmark.Offset, hiddenDepth, progress);
+                if (distance < landmark.Start && !float.IsNegativeInfinity(landmark.RevealStart))
+                {
+                    float reveal = Mathf.InverseLerp(landmark.RevealStart, landmark.Start, distance);
+                    z = Mathf.SmoothStep(hiddenDepth, landmark.Offset, reveal);
+                }
+                bool visible = distance >= landmark.RevealStart && distance < interval.y;
+                landmark.View.localPosition = Vector3.forward * z;
+                if (landmark.View.gameObject.activeSelf != visible) landmark.View.gameObject.SetActive(visible);
             }
             foreach (var backdrop in backdrops)
             {

@@ -2,10 +2,16 @@
 %TAG !u! tag:unity3d.com,2011:
 --- !u!114 &11400000
 MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 0}
   m_Enabled: 1
+  m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e5900be9a67b901489b9031045efef0e, type: 3}
   m_Name: Zone_Palermo
+  m_EditorClassIdentifier: 
   displayName: Palermo
   modules:
   - {fileID: 1004, guid: bdb8c39df2c344ea8c01000000000024, type: 3}
@@ -14,11 +20,12 @@ MonoBehaviour:
   - {fileID: 1004, guid: bdb8c39df2c344ea8c01000000000027, type: 3}
   - {fileID: 1004, guid: bdb8c39df2c344ea8c01000000000028, type: 3}
   - {fileID: 1004, guid: bdb8c39df2c344ea8c01000000000029, type: 3}
-  landmark: {fileID: 0}
-  roadMaterial: {fileID: 2100000, guid: bdb8c39df2c344ea8c0100000000001a, type: 2}
-  obstacles: {fileID: 0}
-  landmarkDistance: 115
+  landmark: {fileID: 1000, guid: 8605f1798ed14ffbb73409ede4ce3669, type: 3}
+  zoneBackdrop: {fileID: 0}
+  roadMaterial: {fileID: 2100000, guid: 9ba7dc0d513efa840ba3ec4b037afc22, type: 2}
+  obstacles: {fileID: 11400000, guid: 5fca9c1afffa446a89e7b27e025b85f3, type: 2}
+  landmarkDistance: 145
   sky: {r: 0.37, g: 0.71, b: 0.89, a: 1}
   fog: {r: 0.64, g: 0.76, b: 0.8, a: 1}
-  fogStart: 65
-  fogEnd: 160
+  fogStart: 52
+  fogEnd: 255.3
