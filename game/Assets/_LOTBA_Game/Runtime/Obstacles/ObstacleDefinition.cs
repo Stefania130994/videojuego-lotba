@@ -30,6 +30,7 @@ namespace Lotba.Game
         [SerializeField, Min(.1f)] private float height = 1f;
         [SerializeField, Min(.1f)] private float length = 1f;
         [SerializeField] private bool jumpable;
+        [SerializeField] private bool vehicle;
         [SerializeField, Min(0)] private float jumpClearance = 1.05f;
         [SerializeField, Min(2)] private int poolCapacity = 12;
         [SerializeField] private BusLivery livery;
@@ -39,6 +40,8 @@ namespace Lotba.Game
         public float Height => height;
         public float Length => length;
         public bool Jumpable => jumpable;
+        public bool TumblesOnImpact => jumpable && !vehicle;
+        public float ContactPadding => vehicle ? .2f : .6f;
         public float JumpClearance => jumpClearance;
         public int PoolCapacity => poolCapacity;
         public BusLivery Livery => livery;

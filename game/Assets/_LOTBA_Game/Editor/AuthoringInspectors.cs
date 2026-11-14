@@ -42,7 +42,7 @@ namespace Lotba.Game.Editor
         {
             var route = (RouteDefinition)target;
             var root = AuthoringInspector.Create(this,
-                "Sections run in order. Each module is 12 m. Use a positive Module Count for intermediate sections and 0 (infinite) for the final section. A single zone with 0 needs no transition.");
+                "Sections run in order. Each module is 12 m. A positive final Module Count sets the finish at the end of the route. Use 0 in the final section for continuous playback.");
             var summary = new HelpBox(); root.Add(summary);
             void Refresh()
             {
@@ -168,13 +168,16 @@ namespace Lotba.Game.Editor
             var mode = new PropertyField(serializedObject.FindProperty("mode")); root.Add(mode);
             var zone = new PropertyField(serializedObject.FindProperty("zone"), "Module Environment"); root.Add(zone);
             var route = new PropertyField(serializedObject.FindProperty("route")); root.Add(route);
+            var profile = new PropertyField(serializedObject.FindProperty("encounterProfile")); root.Add(profile);
             var module = new PropertyField(serializedObject.FindProperty("module"), "Module");
             root.Add(module);
-            foreach (string name in new[] { "speed", "showRider", "showGems", "showObstacles", "showWorldBend" })
+            foreach (string name in new[] { "speed", "showRider", "showGems", "showObstacles", "showWorldBend", "enableCollisions", "testVehicleCourse" })
                 root.Add(new PropertyField(serializedObject.FindProperty(name)));
+            root.Add(new PropertyField(serializedObject.FindProperty("gemIntensity")));
+            root.Add(new PropertyField(serializedObject.FindProperty("obstacleIntensity")));
             var references = new Foldout { text = "Referencias internas", value = false };
             references.Add(new HelpBox("These connections are already configured. Settings supplies shared gameplay tuning: editing its asset also affects the main game. World animates the rider, camera and encounters. Road Stream recycles road modules and applies the route environment.", HelpBoxMessageType.Info));
-            foreach (string name in new[] { "settings", "world", "roadStream" })
+            foreach (string name in new[] { "settings", "world", "roadStream", "testCar", "testBus", "testArticulatedBus" })
                 references.Add(new PropertyField(serializedObject.FindProperty(name)));
             root.Add(references);
             void Refresh()
@@ -182,6 +185,7 @@ namespace Lotba.Game.Editor
                 zone.style.display = preview.Mode == ArtPreviewMode.Route ? DisplayStyle.None : DisplayStyle.Flex;
                 zone.label = preview.Mode == ArtPreviewMode.Module ? "Module Environment" : "Zone";
                 route.style.display = preview.Mode == ArtPreviewMode.Route ? DisplayStyle.Flex : DisplayStyle.None;
+                profile.style.display = preview.Mode == ArtPreviewMode.Route ? DisplayStyle.None : DisplayStyle.Flex;
                 module.style.display = preview.Mode == ArtPreviewMode.Module ? DisplayStyle.Flex : DisplayStyle.None;
             }
             root.TrackSerializedObjectValue(serializedObject, _ => Refresh()); Refresh();

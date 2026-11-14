@@ -153,14 +153,22 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9471e4270e854174dbc77f05184dc61f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Lotba.Game::Lotba.Game.ArtPreviewController
-  mode: 1
+  mode: 3
   zone: {fileID: 11400000, guid: bdb8c39df2c344ea8c0100000000002a, type: 2}
   route: {fileID: 11400000, guid: 9e0aa7f659574c54bd4eed216afff3f5, type: 2}
+  encounterProfile: {fileID: 11400000, guid: 9ff80235e107435684634dc73f2ff290, type: 2}
   module: {fileID: 8444432085023419656, guid: a3ea240dcfd0d0f41bd41afc56e88919, type: 3}
   speed: 22
   showRider: 1
   showGems: 1
   showObstacles: 1
+  enableCollisions: 0
+  gemIntensity: 1
+  obstacleIntensity: 1
+  testVehicleCourse: 0
+  testCar: {fileID: 11400000, guid: 1f784360e902f1049bd4a5490ebf8acb, type: 2}
+  testBus: {fileID: 11400000, guid: fdca24415f194ca2a0f9ce3bae5e5b68, type: 2}
+  testArticulatedBus: {fileID: 11400000, guid: 43eee7099d78418eb5b4d6adcf36c4fd, type: 2}
   showWorldBend: 1
   settings: {fileID: 11400000, guid: 3dd862a5bb6d2bf499b3cc3fdc8dd9c8, type: 2}
   world: {fileID: 1708434620}
@@ -1167,8 +1175,7 @@ MonoBehaviour:
   riderShadow: {fileID: 425062163}
   wordCollectionEnabled: 0
   collectibleWords:
-  - CICLISMO
-  - BUENOS AIRES
+  - HABLAR ES GANAR
   letterFont: {fileID: 0}
   letterOutlineMaterial: {fileID: 0}
   letterInterval: 65

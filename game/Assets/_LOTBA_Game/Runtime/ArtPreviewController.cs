@@ -14,9 +14,14 @@ namespace Lotba.Game
         [Tooltip("Zone to preview, or environment and obstacle catalog for Module mode.")]
         [SerializeField] private MapDefinition zone;
         [SerializeField] private RouteDefinition route;
+        [SerializeField] private EncounterProfile encounterProfile;
         [SerializeField] private RoadModule module;
         [SerializeField, Min(1)] private float speed = 22;
         [SerializeField] private bool showRider = true, showGems = true, showObstacles = true;
+        [SerializeField] private bool enableCollisions;
+        [SerializeField, Range(.25f, 4f)] private float gemIntensity = 1f, obstacleIntensity = 1f;
+        [SerializeField] private bool testVehicleCourse;
+        [SerializeField] private ObstacleDefinition testCar, testBus, testArticulatedBus;
         [SerializeField] private bool showWorldBend = true;
         [SerializeField] private GameSettings settings;
         [SerializeField] private RunnerWorld world;
@@ -30,6 +35,8 @@ namespace Lotba.Game
             get
             {
                 if (settings == null || world == null || roadStream == null) return "Assign settings, world and road streamer.";
+                if (testVehicleCourse && (testCar == null || testBus == null || testArticulatedBus == null))
+                    return "Assign the vehicle course definitions.";
                 if (mode == ArtPreviewMode.Route) return route == null ? "Assign a route." : route.ValidationError;
                 if (zone == null) return "Assign a zone.";
                 if (mode == ArtPreviewMode.Zone) return zone.ValidationError;
@@ -44,14 +51,15 @@ namespace Lotba.Game
             }
             RouteDefinition selected = route;
             if (mode == ArtPreviewMode.Zone)
-                selected = temporaryRoute = RouteDefinition.CreatePreview(zone);
+                selected = temporaryRoute = RouteDefinition.CreatePreview(zone, encounterProfile);
             if (mode == ArtPreviewMode.Module)
             {
                 temporaryMap = MapDefinition.CreatePreview(zone, module);
-                selected = temporaryRoute = RouteDefinition.CreatePreview(temporaryMap);
+                selected = temporaryRoute = RouteDefinition.CreatePreview(temporaryMap, encounterProfile);
             }
             roadStream.SetRoute(selected);
             world.Initialize(settings);
+            if (testVehicleCourse) world.ConfigureVehicleCourse(testCar, testBus, testArticulatedBus);
             ApplyPreviewSettings();
             world.ResetTrack();
             session = new RunSession(settings); session.Start();
@@ -83,7 +91,8 @@ namespace Lotba.Game
         }
         private void ApplyPreviewSettings()
         {
-            world.ConfigureArtPreview(showGems, showObstacles, showRider);
+            world.ConfigureArtPreview(showGems, showObstacles, showRider, enableCollisions);
+            world.SetEncounterIntensity(gemIntensity, obstacleIntensity);
             world.ConfigureDepthBend(showWorldBend);
         }
         private void OnDestroy()

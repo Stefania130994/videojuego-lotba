@@ -17,7 +17,8 @@ namespace Lotba.Game
         public void SetSpeed(float speed, float initialSpeed, float maximumSpeed)
         {
             speedLabel.SetText("{0:0}", DisplaySpeed(speed));
-            float progress = Mathf.InverseLerp(initialSpeed - 3f, maximumSpeed + RunSession.BoostSpeed, speed);
+            float progress = Mathf.InverseLerp(initialSpeed - 3f,
+                maximumSpeed + RunSession.MaximumRiskSpeed + RunSession.BoostSpeed, speed);
             activeArc.fillAmount = progress;
             needlePivot.localRotation = Quaternion.Euler(0f, 0f,
                 Mathf.Lerp(minimumNeedleAngle, maximumNeedleAngle, progress));

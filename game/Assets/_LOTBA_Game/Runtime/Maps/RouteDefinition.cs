@@ -10,6 +10,8 @@ namespace Lotba.Game
     public sealed class RouteSection
     {
         [SerializeField] private MapDefinition map;
+        [Tooltip("Optional encounter tuning for this section. Empty uses the default generation.")]
+        [SerializeField] private EncounterProfile encounterProfile;
         [Tooltip("Number of 12 m modules. Zero means infinite and is allowed only in the final section.")]
         [SerializeField, Min(0)] private int moduleCount;
         [SerializeField] private bool transition;
@@ -20,13 +22,18 @@ namespace Lotba.Game
         [Tooltip("Normalized start and end of the exit within the selected section.")]
         [SerializeField] private Vector2 backdropExitRange = new Vector2(0f, 1f);
         public MapDefinition Map => map;
+        public EncounterProfile EncounterProfile => encounterProfile;
         public int ModuleCount => moduleCount;
         public bool Transition => transition;
         public TransitionTurn Turn => transitionTurn;
         public BackdropExitSection BackdropExit => backdropExitSection;
         public Vector2 BackdropExitRange => backdropExitRange;
 #if UNITY_EDITOR
-        internal void SetPreviewMap(MapDefinition value) => map = value;
+        internal void ConfigurePreview(MapDefinition previewMap, EncounterProfile profile)
+        {
+            map = previewMap;
+            encounterProfile = profile;
+        }
 #endif
     }
 
@@ -35,6 +42,20 @@ namespace Lotba.Game
     public sealed class RouteDefinition : ScriptableObject
     {
         [SerializeField] private RouteSection[] sections;
+        [Tooltip("Target for the last scheduled letter, in modules from the start of the final section. Zero uses default spacing.")]
+        [SerializeField, Min(0)] private int lastLetterFinalSectionModule;
+        public int LastLetterFinalSectionModule => lastLetterFinalSectionModule;
+        public float FinishDistance
+        {
+            get
+            {
+                if (sections == null || sections.Length == 0 || sections[sections.Length - 1].ModuleCount == 0)
+                    return 0f;
+                float distance = 0f;
+                foreach (RouteSection section in sections) distance += section.ModuleCount * RoadStandard.ModuleLength;
+                return distance;
+            }
+        }
         public RouteSection[] Sections => sections;
         public string ValidationError
         {
@@ -47,7 +68,6 @@ namespace Lotba.Game
                     if (section == null || section.Map == null) return $"Section {i + 1}: assign a zone.";
                     if (section.Map.ValidationError != null) return $"Section {i + 1}: {section.Map.ValidationError}";
                     if (i < sections.Length - 1 && section.ModuleCount <= 0) return "Only the final section can use zero (infinite).";
-                    if (i == sections.Length - 1 && section.ModuleCount != 0) return "Set the final section to zero (infinite).";
                     if (section.Transition && (i == sections.Length - 1 || section.ModuleCount <= 0)) return "A transition needs a positive length and a destination section.";
                     if (section.Map.ZoneBackdrop != null && section.ModuleCount > 0)
                     {
@@ -80,12 +100,12 @@ namespace Lotba.Game
         }
 #if UNITY_EDITOR
         /// <summary>Creates an unsaved, single-zone route for the artist preview.</summary>
-        public static RouteDefinition CreatePreview(MapDefinition map)
+        public static RouteDefinition CreatePreview(MapDefinition map, EncounterProfile profile = null)
         {
             var route = CreateInstance<RouteDefinition>();
             route.hideFlags = HideFlags.DontSave;
             route.sections = new[] { new RouteSection() };
-            route.sections[0].SetPreviewMap(map);
+            route.sections[0].ConfigurePreview(map, profile);
             return route;
         }
 #endif

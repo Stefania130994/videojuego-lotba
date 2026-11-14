@@ -18,8 +18,10 @@ No hay que ejecutar una actualización ni combinar meshes. Una modificación gua
 | Mode | Campos | Resultado |
 |---|---|---|
 | Route | Route | Recorre una o varias zonas, con las transiciones incluidas en el recorrido |
-| Zone | Zone | Recorre todos los módulos de la zona en el orden del asset y vuelve al primero |
-| Module | Module Environment y Module | Repite solamente ese módulo; Module Environment aporta suelo, ambiente, hito y obstáculos |
+| Zone | Zone y Encounter Profile opcional | Recorre todos los módulos de la zona en el orden del asset y vuelve al primero |
+| Module | Module Environment, Module y Encounter Profile opcional | Repite solamente ese módulo; Module Environment aporta suelo, ambiente, hito y obstáculos |
+
+Para comparar densidades, elegí **Zone** o **Module** y asigná un **Encounter Profile** como **EncounterProfile_Standard**. En modo **Route** se usa el perfil asignado a cada sección. Un campo vacío usa la generación predeterminada. **Gem Intensity** y **Obstacle Intensity** ajustan por separado la frecuencia de los próximos encuentros que usen un perfil. Editá el perfil para cambiar los hilos, las gemas por hilo o la separación mínima entre obstáculos.
 
 Usá Module para unir una pieza consigo misma, Zone para comprobar vecinos distintos del mismo barrio y Route para revisar la entrada y la salida de una transición.
 
@@ -52,7 +54,9 @@ Las referencias ya están asignadas. **Editar el asset compartido de Settings mo
 - P: pausar o continuar el movimiento.
 - Salir de Play: terminar la revisión.
 
-La velocidad es fija, el recorrido no termina por tiempo y los obstáculos no penalizan ni ralentizan al ciclista. No hay menú, puntaje visible, sonido ni vibración. Los encuentros utilizan el sistema de aparición del juego; esta escena no verifica dificultad, puntuación ni la experiencia educativa.
+La velocidad es fija y el recorrido no termina por tiempo. **Enable Collisions** está apagado por defecto y se puede activar durante Play para probar impactos con obstáculos. No hay menú, puntaje visible, sonido, vibración ni exportación de telemetría.
+
+Para probar autos y techos, activá **Test Vehicle Course** antes de entrar en Play. El auto está en el carril central alrededor de los 44 m. Seguí las gemas por la rampa central a los 72 m, cambiá al carril derecho en la unión entre techos y saltá cerca del borde para cubrir los 14 m hasta el articulado a la velocidad predeterminada de 22 m/s. Si seguís de largo, caés a la calle antes del siguiente bondi. Al terminar el último techo, el ciclista también cae a la calle. La rampa y los techos sostienen al ciclista con cualquier valor de **Enable Collisions**.
 
 Para comparar el encuadre, usar Game en orientación vertical. La cámara mantiene la misma zona de juego 9:16 que la partida. El movimiento y la cámara se comparten con el juego.
 

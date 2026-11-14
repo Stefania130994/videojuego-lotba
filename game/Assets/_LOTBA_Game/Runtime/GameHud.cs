@@ -22,12 +22,14 @@ namespace Lotba.Game
         private Vector2 wordBannerVisiblePosition;
         private float wordBannerStarted, wordBannerUntil;
         private float multiplierPulseUntil;
-        private float scorePulseUntil;
-        private long previousScore;
+        private float gemPulseUntil;
+        private int previousGemBalance;
+        private RectTransform gemPanel;
         private RectTransform speedOffer;
         private BoostSpeedLines boostSpeedLines;
         private RectTransform milestoneBar;
         private RectTransform milestoneFill;
+        private RectTransform milestoneRider;
         private UnityEngine.UI.Image multiplierFill;
         private TMPro.TextMeshProUGUI milestoneLabel;
         private RectTransform boostTimeFill;
@@ -42,6 +44,10 @@ namespace Lotba.Game
         private void Awake()
         {
             ApplyIdentity();
+            gemPanel = (RectTransform)gems.transform.parent;
+            gems.enableAutoSizing = false;
+            gems.overflowMode = TMPro.TextOverflowModes.Overflow;
+            ResizeGemCounter();
             wordBannerVisiblePosition = wordBanner.anchoredPosition;
             wordBanner.gameObject.SetActive(false);
             var linesObject = new GameObject("Boost speed lines", typeof(RectTransform), typeof(CanvasRenderer), typeof(BoostSpeedLines));
@@ -116,20 +122,44 @@ namespace Lotba.Game
                 Label("Detalle", card, new Vector2(.07f, .08f), new Vector2(.93f, .57f), description, 17f);
             }
 
-            milestoneBar = Region("Próxima decisión", raceHud.transform, new Vector2(.035f, .44f), new Vector2(.087f, .72f));
-            var track = Region("Carril de progreso", milestoneBar, Vector2.zero, new Vector2(1f, .82f));
-            Background(track, new Color32(17, 29, 43, 235));
-            milestoneFill = Region("Progreso", track, new Vector2(.12f, .02f), new Vector2(.88f, .98f));
-            Background(milestoneFill, new Color32(107, 221, 195, 255));
-            var cardsIcon = Region("Icono de tres cartas", milestoneBar, new Vector2(-.28f, .87f), new Vector2(1.28f, 1f));
-            for (int i = -1; i <= 1; i++)
+            void RoundedBackground(RectTransform region, Color color)
             {
-                var card = Region("Carta", cardsIcon, new Vector2(.27f + .18f * i, .1f), new Vector2(.73f + .18f * i, .9f));
-                card.localRotation = Quaternion.Euler(0f, 0f, -i * 19f);
-                Background(card, new Color32(145, 195, 217, 255));
-                Background(Region("Centro", card, new Vector2(.16f, .12f), new Vector2(.84f, .88f)), new Color32(28, 54, 72, 255));
+                var image = Background(region, color);
+                image.sprite = gemPanel.GetComponent<UnityEngine.UI.Image>().sprite;
+                image.type = UnityEngine.UI.Image.Type.Sliced;
+                image.pixelsPerUnitMultiplier = 3f;
             }
-            cardsIcon.GetChild(1).SetAsLastSibling();
+
+            milestoneBar = Region("Progreso de zona", raceHud.transform, new Vector2(.046f, .44f), new Vector2(.070f, .72f));
+            var track = Region("Carril de progreso", milestoneBar, Vector2.zero, new Vector2(1f, .82f));
+            RoundedBackground(track, new Color32(17, 29, 43, 235));
+            milestoneFill = Region("Progreso", track, new Vector2(.13f, .015f), new Vector2(.87f, .985f));
+            RoundedBackground(milestoneFill, new Color32(107, 221, 195, 255));
+
+            var flag = Region("Bandera de llegada", milestoneBar, new Vector2(.5f, .98f), new Vector2(.5f, .98f));
+            flag.sizeDelta = new Vector2(24f, 24f);
+            Background(Region("Mástil", flag, new Vector2(.12f, .05f), new Vector2(.21f, .94f)), Color.white);
+            for (int column = 0; column < 3; column++)
+                for (int row = 0; row < 2; row++)
+                {
+                    var min = new Vector2(.21f + column * .24f, .44f + row * .25f);
+                    Background(Region("Cuadro", flag, min, min + new Vector2(.24f, .25f)),
+                        (column + row) % 2 == 0 ? Color.white : new Color32(17, 29, 43, 255));
+                }
+
+            milestoneRider = Region("Ciclista", track, new Vector2(.5f, 0f), new Vector2(.5f, 0f));
+            milestoneRider.sizeDelta = new Vector2(21f, 21f);
+            RoundedBackground(milestoneRider, new Color32(17, 29, 43, 255));
+            RoundedBackground(Region("Cara", milestoneRider, new Vector2(.23f, .15f), new Vector2(.77f, .72f)),
+                new Color32(239, 183, 135, 255));
+            RoundedBackground(Region("Casco", milestoneRider, new Vector2(.13f, .55f), new Vector2(.87f, .89f)),
+                new Color32(98, 207, 223, 255));
+            for (int i = 0; i < 2; i++)
+            {
+                float x = .33f + .23f * i;
+                Background(Region("Ojo", milestoneRider, new Vector2(x, .39f), new Vector2(x + .09f, .48f)),
+                    new Color32(17, 29, 43, 255));
+            }
             milestoneLabel = Label("Indicador de impulso", raceHud.transform, new Vector2(.28f, .69f), new Vector2(.72f, .74f), "IMPULSO · GEMAS ×2", 17f);
             var boostTrack = Region("Tiempo de impulso", milestoneLabel.transform, new Vector2(.12f, 0f), new Vector2(.88f, .09f));
             Background(boostTrack, new Color32(17, 29, 43, 235));
@@ -193,11 +223,21 @@ namespace Lotba.Game
         public void ResetView()
         {
             multiplierPulseUntil = 0; previousMultiplier = 1; SettingsOpen = false;
-            scorePulseUntil = 0f;
-            previousScore = 0;
+            gemPulseUntil = 0f;
+            previousGemBalance = -1;
             telemetryPanel?.SetReport(null);
             wordBannerUntil = 0;
             if (wordBanner != null) wordBanner.gameObject.SetActive(false);
+        }
+
+        private void ResizeGemCounter()
+        {
+            const float iconAndPadding = 52f;
+            gems.fontSize = 24f;
+            float textWidth = gems.GetPreferredValues(gems.text, Mathf.Infinity, Mathf.Infinity).x;
+            float width = Mathf.Min(250f, textWidth * 1.18f + iconAndPadding);
+            gems.fontSize *= Mathf.Min(1f, (width - iconAndPadding) / Mathf.Max(1f, textWidth * 1.18f));
+            gemPanel.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
         }
 
 
@@ -256,16 +296,24 @@ namespace Lotba.Game
             if (speedOffer != null)
             {
                 speedOffer.gameObject.SetActive(running && session.OfferPending);
-                milestoneBar.gameObject.SetActive(active);
-                milestoneFill.anchorMax = new Vector2(.88f, Mathf.Lerp(.02f, .98f, session.OfferProgress));
+                milestoneBar.gameObject.SetActive(active && session.HasZoneProgress);
+                float progress = Mathf.Lerp(.015f, .985f, session.OfferProgress);
+                milestoneFill.anchorMax = new Vector2(.87f, progress);
+                milestoneRider.anchorMin = milestoneRider.anchorMax = new Vector2(.5f, progress);
                 milestoneLabel.gameObject.SetActive(running && session.BoostActive);
                 boostTimeFill.anchorMax = new Vector2(session.BoostProgress, 1f);
             }
-            if (session.Score > previousScore) scorePulseUntil = Time.unscaledTime + .24f;
-            previousScore = session.Score;
-            float scorePulse = running ? Mathf.Clamp01((scorePulseUntil - Time.unscaledTime) / .24f) : 0f;
-            score.rectTransform.localScale = Vector3.one * (1f + Mathf.Sin(scorePulse * Mathf.PI) * .25f);
-            score.text = session.Score.ToString(); gems.text = $"{session.GemBalance} ×";
+            if (session.GemBalance != previousGemBalance)
+            {
+                if (previousGemBalance >= 0 && session.GemBalance > previousGemBalance)
+                    gemPulseUntil = Time.unscaledTime + .24f;
+                previousGemBalance = session.GemBalance;
+                gems.text = $"{session.GemBalance} ×";
+                ResizeGemCounter();
+            }
+            float gemPulse = running ? Mathf.Clamp01((gemPulseUntil - Time.unscaledTime) / .24f) : 0f;
+            gems.rectTransform.localScale = Vector3.one * (1f + Mathf.Sin(gemPulse * Mathf.PI) * .18f);
+            score.text = session.Score.ToString();
             multiplier.text = $"×{session.Multiplier}";
             if (multiplierFill != null) multiplierFill.fillAmount = session.MultiplierProgress;
             if (session.Multiplier > previousMultiplier) multiplierPulseUntil = Time.unscaledTime + .3f;

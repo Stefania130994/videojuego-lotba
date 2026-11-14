@@ -3,7 +3,7 @@ using System;
 namespace Lotba.Game
 {
     public enum RunState { Ready, Running, Paused, Finished }
-    public enum RunEnding { None, Brake, TimeLimit }
+    public enum RunEnding { None, Brake, RouteComplete = 3 }
 
     /// <summary>Run state only: no cards, menus, physics, or scene object ownership.</summary>
     public sealed class RunSession
@@ -19,22 +19,35 @@ namespace Lotba.Game
         private float impactTime = float.NegativeInfinity;
         private float protectedUntil;
         private int multiplierStartGems;
-        private float decisionStartDistance;
+        private int nextDecisionSection;
+        private float decisionSectionStart;
         public const float BoostSeconds = 6f;
         public const float BoostSpeed = 6f;
+        public const float MaximumRiskSpeed = 5f;
         private float boostUntil;
         public bool OfferPending { get; private set; }
         public bool BoostActive => Elapsed < boostUntil;
         public float BoostProgress => BoostActive ? (boostUntil - Elapsed) / BoostSeconds : 0f;
         public int VoluntaryBoosts { get; private set; }
+        public float AccumulatedRisk => Math.Min(1f, VoluntaryBoosts / 3f);
         public int BonusGems { get; private set; }
         public float OfferDistance { get; private set; }
         public int DecisionsShown { get; private set; }
         public int DecisionsKept { get; private set; }
-        public float NextDecisionDistance => decisionStartDistance + settings.FirstDecisionMetres +
-            DecisionsShown * settings.ExtraMetresPerDecision;
-        public float OfferProgress => OfferPending ? 1f : Math.Min(1f,
-            (Distance - decisionStartDistance) / ((OfferDistance > 0f ? OfferDistance : NextDecisionDistance) - decisionStartDistance));
+        public bool HasZoneProgress => telemetryRoute != null &&
+            (OfferPending || telemetryRoute.Sections[telemetryRoute.SectionAt(Distance, out _)].ModuleCount > 0);
+        public float OfferProgress
+        {
+            get
+            {
+                if (OfferPending) return 1f;
+                if (telemetryRoute == null) return 0f;
+                RouteSection section = telemetryRoute.Sections[telemetryRoute.SectionAt(Distance, out float start)];
+                if (section.Transition) return 1f;
+                return section.ModuleCount == 0 ? 0f :
+                    Math.Min(1f, (Distance - start) / (section.ModuleCount * RoadStandard.ModuleLength));
+            }
+        }
         public RunState State { get; private set; }
         public RunEnding Ending { get; private set; }
         public float Elapsed { get; private set; }
@@ -51,7 +64,7 @@ namespace Lotba.Game
         public int Multiplier { get; private set; } = 1;
         public int GemsForMultiplier => settings.FirstMultiplierGems + (Multiplier - 1) * settings.ExtraGemsPerMultiplier;
         public float MultiplierProgress => (Gems - multiplierStartGems) / (float)GemsForMultiplier;
-        public float Remaining => Math.Max(0f, settings.Duration - Elapsed);
+        private readonly float finishDistance;
         public bool IsProtected => Elapsed < protectedUntil;
         public float ProtectionProgress => IsProtected
             ? Math.Max(0f, 1f - (protectedUntil - Elapsed) / ImpactProtectionSeconds)
@@ -61,6 +74,7 @@ namespace Lotba.Game
         {
             this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
             this.telemetryRoute = telemetryRoute;
+            finishDistance = telemetryRoute?.FinishDistance ?? 0f;
             Speed = PeakSpeed = settings.InitialSpeed;
         }
         public void Start()
@@ -68,7 +82,7 @@ namespace Lotba.Game
             if (State != RunState.Ready) return;
             State = RunState.Running;
             if (telemetryRoute == null) return;
-            Telemetry = new RunTelemetry { route = telemetryRoute.name, seed = settings.Seed, durationSeconds = settings.Duration };
+            Telemetry = new RunTelemetry { route = telemetryRoute.name, seed = settings.Seed, routeDistanceMetres = finishDistance };
             Record("run_started");
         }
 #if UNITY_EDITOR
@@ -84,13 +98,14 @@ namespace Lotba.Game
         public void Tick(float dt)
         {
             if (State != RunState.Running || OfferPending) return;
-            float step = Math.Min(dt, Remaining);
+            float step = dt;
             Elapsed += step;
             float progression = 1f - (float)Math.Exp(-Elapsed / settings.AccelerationTime);
             float baseSpeed = settings.InitialSpeed + (settings.MaximumSpeed - settings.InitialSpeed) * progression;
             float sinceImpact = Elapsed - impactTime;
             float recovery = Math.Min(1f, sinceImpact / ImpactRecoverySeconds);
-            Speed = Math.Max(0f, baseSpeed + (BoostActive ? BoostSpeed : 0f) - ImpactSpeedLoss * (1f - recovery));
+            Speed = Math.Max(0f, baseSpeed + MaximumRiskSpeed * AccumulatedRisk +
+                (BoostActive ? BoostSpeed : 0f) - ImpactSpeedLoss * (1f - recovery));
             PeakSpeed = Math.Max(PeakSpeed, Speed);
             Distance += Speed * step;
             if (Telemetry != null)
@@ -102,16 +117,26 @@ namespace Lotba.Game
                     Record("zone_entered");
                 }
             }
-            if (Remaining <= 0f) Finish(RunEnding.TimeLimit);
+            if (finishDistance > 0f && Distance >= finishDistance)
+            {
+                Distance = finishDistance;
+                Finish(RunEnding.RouteComplete);
+            }
         }
-        public void ScheduleSpeedOffer(float distance)
-        {
-            if (Telemetry != null && OfferDistance == 0f && distance >= NextDecisionDistance) OfferDistance = distance;
-        }
-
         public void ShowSpeedOffer()
         {
-            if (OfferDistance <= 0f || Distance < OfferDistance || State != RunState.Running || OfferPending) return;
+            if (Telemetry == null || State != RunState.Running || OfferPending) return;
+            RouteSection[] sections = telemetryRoute.Sections;
+            while (OfferDistance == 0f && nextDecisionSection < sections.Length - 1)
+            {
+                RouteSection section = sections[nextDecisionSection++];
+                decisionSectionStart += section.ModuleCount * RoadStandard.ModuleLength;
+                if (section.Transition) continue;
+                RouteSection next = sections[nextDecisionSection];
+                OfferDistance = decisionSectionStart +
+                    (next.Transition ? next.ModuleCount * RoadStandard.ModuleLength * .5f : 0f);
+            }
+            if (OfferDistance <= 0f || Distance < OfferDistance) return;
             OfferPending = true;
             DecisionsShown++;
             Record("speed_offer_shown", decisionNumber: DecisionsShown);
@@ -121,7 +146,6 @@ namespace Lotba.Game
         {
             if (!OfferPending || State != RunState.Running) return;
             OfferPending = false;
-            decisionStartDistance = Distance;
             OfferDistance = 0f;
             if (!accelerate)
             {
@@ -204,7 +228,7 @@ namespace Lotba.Game
             OfferPending = false;
             if (Telemetry != null)
             {
-                string reason = ending == RunEnding.Brake ? "brake" : "time_limit";
+                string reason = ending == RunEnding.Brake ? "brake" : "route_complete";
                 Record("run_finished", reason);
                 Telemetry.summary = new RunTelemetrySummary
                 {

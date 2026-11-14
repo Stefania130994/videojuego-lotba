@@ -12,44 +12,52 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6e050c9f85bc118419c3d58449819ff6, type: 3}
   m_Name: Route_ReservaToPalermo
   m_EditorClassIdentifier: Lotba.Game::Lotba.Game.RouteDefinition
+  lastLetterFinalSectionModule: 135
   sections:
   - map: {fileID: 11400000, guid: bdb8c39df2c344ea8c01000000000015, type: 2}
-    moduleCount: 30
+    encounterProfile: {fileID: 11400000, guid: 2103e1501f7848bcb288478d8fa72e27, type: 2}
+    moduleCount: 75
     transition: 0
     transitionTurn: 0
     backdropExitSection: 1
     backdropExitRange: {x: 0, y: 1}
   - map: {fileID: 11400000, guid: e0ea05818bfa4f8b94e3d1c023d28e5a, type: 2}
-    moduleCount: 15
+    encounterProfile: {fileID: 11400000, guid: 1d8bd8c1c735465385fd4594eb5cb8ff, type: 2}
+    moduleCount: 20
     transition: 1
     transitionTurn: 1
     backdropExitSection: 0
     backdropExitRange: {x: 0, y: 1}
   - map: {fileID: 11400000, guid: d5659d2fa0913f848a5d52f88d8950d9, type: 2}
-    moduleCount: 30
+    encounterProfile: {fileID: 11400000, guid: d912aa9c61fe42dcbe0b7f0f8e191f6a, type: 2}
+    moduleCount: 285
     transition: 0
     transitionTurn: 0
     backdropExitSection: 0
     backdropExitRange: {x: 0, y: 1}
   - map: {fileID: 11400000, guid: b406a0f639b92264193a9224673410d6, type: 2}
-    moduleCount: 15
+    encounterProfile: {fileID: 11400000, guid: 1d8bd8c1c735465385fd4594eb5cb8ff, type: 2}
+    moduleCount: 20
     transition: 1
     transitionTurn: 1
     backdropExitSection: 0
     backdropExitRange: {x: 0, y: 1}
   - map: {fileID: 11400000, guid: 69af62632a6e1ce4cadd13cb40f11607, type: 2}
-    moduleCount: 30
+    encounterProfile: {fileID: 11400000, guid: 14de6551472b4fc7ba95b0b407ff7325, type: 2}
+    moduleCount: 355
     transition: 0
     transitionTurn: 0
     backdropExitSection: 0
     backdropExitRange: {x: 0, y: 1}
   - map: {fileID: 11400000, guid: f8f27010ad3b47339998e4fe193c9b80, type: 2}
-    moduleCount: 15
+    encounterProfile: {fileID: 11400000, guid: 1d8bd8c1c735465385fd4594eb5cb8ff, type: 2}
+    moduleCount: 25
     transition: 1
     transitionTurn: 0
     backdropExitSection: 0
     backdropExitRange: {x: 0, y: 1}
   - map: {fileID: 11400000, guid: bdb8c39df2c344ea8c0100000000002a, type: 2}
+    encounterProfile: {fileID: 11400000, guid: 9ff80235e107435684634dc73f2ff290, type: 2}
     moduleCount: 0
     transition: 0
     transitionTurn: 0

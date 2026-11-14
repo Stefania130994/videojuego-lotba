@@ -21,3 +21,11 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 14a1381ba78b1774bb2527d84d35c6df, type: 2}
   - {fileID: 11400000, guid: 6a2aa7039868f104cbda0a0bc5461f34, type: 2}
   - {fileID: 11400000, guid: eba65456314eeae4e99c7e64b484d466, type: 2}
+  elevatedBus: {fileID: 11400000, guid: eba65456314eeae4e99c7e64b484d466, type: 2}
+  vehiclePatterns:
+  - 0
+  - 1
+  - 3
+  - 2
+  - 4
+  - 5

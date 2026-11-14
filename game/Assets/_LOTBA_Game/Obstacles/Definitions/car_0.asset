@@ -17,8 +17,9 @@ MonoBehaviour:
   width: 1.9
   height: 1.5
   length: 3.65
-  jumpable: 0
-  jumpClearance: 0
+  jumpable: 1
+  vehicle: 1
+  jumpClearance: 1.5
   poolCapacity: 12
   livery:
     lineNumber: 

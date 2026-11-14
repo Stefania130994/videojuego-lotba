@@ -47,9 +47,11 @@ Un hito es un prefab que sirve de referencia visual al frente del recorrido, com
 1. En `Maps/Routes/Definitions`, usá **Create > LOTBA > Maps > Route definition** o duplicá uno existente.
 2. En Sections, asigná las zonas en orden.
 3. Indicá Module Count positivo para cada tramo intermedio. Cada unidad equivale a 12 m; el Inspector muestra los metros.
-4. Dejá la última sección con **Module Count = 0**, que significa infinito.
+4. Para una ruta con llegada, indicá también un **Module Count** positivo en la última sección. La meta queda al final de la suma de módulos. Usá **0** en la última sección para un recorrido continuo.
 5. Activá Transition solo en los enlaces que tengan duración positiva y un destino después.
 6. Elegí Route en ArtPreview y asigná el recorrido para revisarlo.
+
+Cada sección puede referenciar un **Encounter Profile** para ajustar la frecuencia y la composición de encuentros. Podés crear uno con **Create > LOTBA > Maps > Encounter profile** y reutilizarlo con distintas zonas. El catálogo de obstáculos sale del MapDefinition de la sección. Si dejás el perfil vacío, esa sección usa la generación predeterminada.
 
 Ejemplo mínimo: una sola sección, Map = La Boca, Module Count = 0 y Transition desactivado. Repite La Boca y no necesita enlaces.
 

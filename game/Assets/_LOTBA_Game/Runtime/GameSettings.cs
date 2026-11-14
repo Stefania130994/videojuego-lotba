@@ -6,7 +6,6 @@ namespace Lotba.Game
     [CreateAssetMenu(menuName = "LOTBA/Game settings")]
     public sealed class GameSettings : ScriptableObject
     {
-        [SerializeField, Min(30f)] private float duration = 480f;
         [SerializeField, Min(1f)] private float initialSpeed = 18f;
         [SerializeField, Min(1f)] private float maximumSpeed = 30f;
         [SerializeField, Min(1f)] private float accelerationTime = 95f;
@@ -112,13 +111,8 @@ namespace Lotba.Game
         [Header("Progression")]
         [SerializeField, Min(2)] private int firstMultiplierGems = 200;
         [SerializeField, Min(1)] private int extraGemsPerMultiplier = 100;
-        [SerializeField, Min(200f)] private float firstDecisionMetres = 600f;
-        [SerializeField, Min(1f)] private float extraMetresPerDecision = 300f;
         public int FirstMultiplierGems => firstMultiplierGems;
         public int ExtraGemsPerMultiplier => extraGemsPerMultiplier;
-        public float FirstDecisionMetres => firstDecisionMetres;
-        public float ExtraMetresPerDecision => extraMetresPerDecision;
-        public float Duration => duration;
         public float InitialSpeed => initialSpeed;
         public float MaximumSpeed => Mathf.Max(initialSpeed, maximumSpeed);
         public float AccelerationTime => accelerationTime;

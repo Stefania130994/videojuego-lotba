@@ -110,7 +110,11 @@ namespace Lotba.Game
                     {
                         float step = Mathf.Min(.02f, budget); session.Tick(step);
                         if (session.State == RunState.Running)
+                        {
+                            world.SetEncounterIntensity(1f + .35f * session.AccumulatedRisk,
+                                1f + .75f * session.AccumulatedRisk);
                             world.Advance(session, step, false, UseBoostCamera, IsHighQuality);
+                        }
                         budget -= step;
                     }
                 }

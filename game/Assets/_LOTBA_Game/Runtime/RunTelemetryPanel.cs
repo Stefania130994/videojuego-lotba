@@ -116,8 +116,10 @@ namespace Lotba.Game
             if (report.schemaVersion >= 3)
                 AddText(content, $"Gemas recogidas: {result.gems} · Perdidas: {result.gemsLost} · Saldo: {result.gemBalance}\n" +
                     $"Choques con impulso: {result.boostCollisions}", 19f);
+            string routeLength = report.schemaVersion < 7 ? $"Tiempo previsto: {report.durationSeconds:0} s" :
+                report.routeDistanceMetres > 0f ? $"Distancia de ruta: {report.routeDistanceMetres:0} m" : "Ruta continua";
             AddText(content, $"Ruta: {report.route}\nVersión: {report.gameVersion} · Esquema: {report.schemaVersion}\n" +
-                $"Semilla: {report.seed} · Tiempo previsto: {report.durationSeconds:0} s\nPartida: {report.runId}", 17f);
+                $"Semilla: {report.seed} · {routeLength}\nPartida: {report.runId}", 17f);
         }
 
         private void Copy()
@@ -169,7 +171,8 @@ namespace Lotba.Game
             rect.offsetMin = rect.offsetMax = Vector2.zero;
         }
 
-        private static string Ending(string reason) => reason == "brake" ? "Frenado voluntario" : "Fin por tiempo";
+        private static string Ending(string reason) => reason == "brake" ? "Frenado voluntario" :
+            reason == "route_complete" ? "Recorrido completado" : "Fin por tiempo";
 
     }
 }

@@ -72,7 +72,7 @@ namespace Lotba.Game
                 {
                     Transform landmark = Instantiate(section.Map.Landmark, transform).transform;
                     var landmarkView = new LandmarkView { View = landmark, Start = start, Offset = section.Map.LandmarkDistance };
-                    if (section.ModuleCount > 0)
+                    if (sectionIndex + 1 < route.Sections.Length)
                     {
                         float transitionStart = start + section.ModuleCount * RoadStandard.ModuleLength;
                         RouteSection next = route.Sections[sectionIndex + 1];

@@ -12,9 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f2c7bfd5218df6f4ebb04055bb2d661a, type: 3}
   m_Name: GameSettings
   m_EditorClassIdentifier: Lotba.Game::Lotba.Game.GameSettings
-  duration: 480
-  initialSpeed: 18
-  maximumSpeed: 30
+  initialSpeed: 19
+  maximumSpeed: 32
   accelerationTime: 95
   riderImpactShader: {fileID: 4800000, guid: d0754c08401847a0b4258c29d03d1d75, type: 3}
   turboAuraShader: {fileID: 4800000, guid: c60303daed4c47cbba59a4efa5c969c3, type: 3}
@@ -138,5 +137,3 @@ MonoBehaviour:
   cameraFollowStrength: 0.95
   firstMultiplierGems: 200
   extraGemsPerMultiplier: 100
-  firstDecisionMetres: 600
-  extraMetresPerDecision: 300
