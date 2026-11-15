@@ -7,6 +7,7 @@ namespace Lotba.Game
     {
         public const float Duration = .72f;
         public const float ApexHeight = 1.75f;
+        public const float EndDescentSpeed = 4f * ApexHeight / Duration;
         private float startedAt = float.NegativeInfinity;
 
         public bool TryStart(float time)
@@ -23,6 +24,12 @@ namespace Lotba.Game
         }
 
         public void Reset() => startedAt = float.NegativeInfinity;
+
+        public float FallTimeAfterArc(float time, float step)
+        {
+            float beyondArc = time - startedAt - Duration;
+            return beyondArc >= 0f && beyondArc < step ? beyondArc : -1f;
+        }
 
         // A ground pickup is at handlebar height. Elevated pickups require the jump arc.
         public static bool CanCollect(float jumpHeight, float gemHeight) => Math.Abs(jumpHeight + 1.1f - gemHeight) < .7f;

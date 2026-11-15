@@ -1485,8 +1485,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3866afb2c0626764288957689c6ab67b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Lotba.Game::Lotba.Game.AudioManager
+  backgroundMusic: {fileID: 8300000, guid: 6768cbd9793aab248a830a5611579772, type: 3}
+  backgroundMusicVolume: 0.35
+  uiClick: {fileID: 8300000, guid: 498c3428b27f8b84f84169f544c0c77b, type: 3}
+  brakeButton: {fileID: 8300000, guid: c3316fa3e66fc074ebf655e86976ef94, type: 3}
+  boostButton: {fileID: 0}
+  uiClickVolume: 0.35
+  brakeButtonVolume: 0.55
+  boostButtonVolume: 0.3
   gemPickup: {fileID: 8300000, guid: a607203e69af12545a5938bc24c82ec5, type: 3}
-  gemPickupVolume: 0.7
+  gemPickupVolume: 0.3
   airborneGemSemitones: {x: 0, y: 4, z: 7, w: 12}
   laneSlide: {fileID: 8300000, guid: f4196d39b2cdcf94f8aac81145b1eece, type: 3}
   laneSlideVolume: 0.55
@@ -1494,12 +1502,18 @@ MonoBehaviour:
   jumpVolume: 0.55
   collision: {fileID: 8300000, guid: 83fd7a7ad2d3b694284927877924a0e5, type: 3}
   collisionVolume: 0.65
-  boostStart: {fileID: 8300000, guid: f4196d39b2cdcf94f8aac81145b1eece, type: 3}
-  boostStartVolume: 0.7
-  boostCollision: {fileID: 8300000, guid: 83fd7a7ad2d3b694284927877924a0e5, type: 3}
+  decisionShown: {fileID: 8300000, guid: 207d40d5c7a2b9a4a8ef44c6a675d10a, type: 3}
+  decisionShownVolume: 0.55
+  boostReady: {fileID: 8300000, guid: 9af4a42c5a83bbd4cab53e15058d97c9, type: 3}
+  boostReadyVolume: 0.5
+  boostStart: {fileID: 8300000, guid: 40a768eed6435dc498dc9afd11bf52c4, type: 3}
+  boostStartVolume: 0.73
+  boostCollision: {fileID: 8300000, guid: 62885861acecab64eb5f89832e77318b, type: 3}
   boostCollisionVolume: 0.8
-  streakLevelUp: {fileID: 8300000, guid: 6cf45a9821f50834bb1d2f946ada2719, type: 3}
-  streakLevelUpVolume: 0.7
+  gemLoss: {fileID: 8300000, guid: 59f2bd52e77d26f4ca970c1e893fc7e8, type: 3}
+  boostGemLoss: {fileID: 8300000, guid: 83fd7a7ad2d3b694284927877924a0e5, type: 3}
+  gemLossVolume: 0.45
+  boostGemLossVolume: 0.35
   letterPickup: {fileID: 8300000, guid: 44c73e4cb291d744f8b68d4a2bd43d07, type: 3}
   letterPickupVolume: 0.7
   wordCompleted: {fileID: 8300000, guid: 929dd465c1aa9f54994b3eed09b1409c, type: 3}
@@ -1755,7 +1769,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8683877809164623699, guid: f0b10b17edb6a2948a61becb1af1e219, type: 3}
       propertyPath: m_fontColor32.rgba
-      value: 4294114041
+      value: 4279510034
       objectReference: {fileID: 0}
     - target: {fileID: 8683877809164623699, guid: f0b10b17edb6a2948a61becb1af1e219, type: 3}
       propertyPath: m_TextStyleHashCode
@@ -1763,7 +1777,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 9098971614267697260, guid: f0b10b17edb6a2948a61becb1af1e219, type: 3}
       propertyPath: m_fontColor32.rgba
-      value: 4294114041
+      value: 4292802559
       objectReference: {fileID: 0}
     - target: {fileID: 9098971614267697260, guid: f0b10b17edb6a2948a61becb1af1e219, type: 3}
       propertyPath: m_TextStyleHashCode

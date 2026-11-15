@@ -7,9 +7,9 @@ MonoBehaviour:
   m_Enabled: 1
   m_Script: {fileID: 11500000, guid: 715aafaee0f5451d9d3c310173d4ba27, type: 3}
   m_Name: EncounterProfile_Transicion
-  gemInterval: 39
+  gemInterval: 43
   gemThreads: 1
   gemsPerThread: 2
   gemSpacing: 2.5
-  obstacleInterval: 38
+  obstacleInterval: 35
   obstacleClearance: 15

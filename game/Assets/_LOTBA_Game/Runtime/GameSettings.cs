@@ -109,10 +109,8 @@ namespace Lotba.Game
         public float CameraFollowTime => cameraFollowTime;
         public float CameraFollowStrength => cameraFollowStrength;
         [Header("Progression")]
-        [SerializeField, Min(2)] private int firstMultiplierGems = 200;
-        [SerializeField, Min(1)] private int extraGemsPerMultiplier = 100;
-        public int FirstMultiplierGems => firstMultiplierGems;
-        public int ExtraGemsPerMultiplier => extraGemsPerMultiplier;
+        [SerializeField, Min(1)] private int turboChargeGems = 40;
+        public int TurboChargeGems => Mathf.Max(1, turboChargeGems);
         public float InitialSpeed => initialSpeed;
         public float MaximumSpeed => Mathf.Max(initialSpeed, maximumSpeed);
         public float AccelerationTime => accelerationTime;

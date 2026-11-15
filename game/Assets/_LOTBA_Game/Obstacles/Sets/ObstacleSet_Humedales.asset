@@ -16,12 +16,16 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 8c6f276f6dcd72f4e9b9dd8eb64bfd45, type: 2}
   - {fileID: 11400000, guid: b59dd64a3b274bc40a5559c9523a8a76, type: 2}
   traffic:
-  - {fileID: 11400000, guid: 6a2aa7039868f104cbda0a0bc5461f34, type: 2}
-  elevatedBus: {fileID: 11400000, guid: 6a2aa7039868f104cbda0a0bc5461f34, type: 2}
+  - {fileID: 11400000, guid: 1d62b76cff7a43f389a873a56c62828f, type: 2}
+  elevatedBus: {fileID: 11400000, guid: 1d62b76cff7a43f389a873a56c62828f, type: 2}
   vehiclePatterns:
   - 0
-  - 1
+  - 10
   - 3
   - 2
   - 4
   - 5
+  - 7
+  - 8
+  - 1
+  - 9

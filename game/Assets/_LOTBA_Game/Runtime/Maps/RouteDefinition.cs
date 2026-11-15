@@ -12,6 +12,9 @@ namespace Lotba.Game
         [SerializeField] private MapDefinition map;
         [Tooltip("Optional encounter tuning for this section. Empty uses the default generation.")]
         [SerializeField] private EncounterProfile encounterProfile;
+        [Tooltip("Gem cost at the exit of this section. Zero keeps the temporary boost offer.")]
+        [SerializeField, Min(0)] private int speedUpgradeCost;
+        [SerializeField, Min(0f)] private float speedUpgradeMetresPerSecond;
         [Tooltip("Number of 12 m modules. Zero means infinite and is allowed only in the final section.")]
         [SerializeField, Min(0)] private int moduleCount;
         [SerializeField] private bool transition;
@@ -23,6 +26,8 @@ namespace Lotba.Game
         [SerializeField] private Vector2 backdropExitRange = new Vector2(0f, 1f);
         public MapDefinition Map => map;
         public EncounterProfile EncounterProfile => encounterProfile;
+        public int SpeedUpgradeCost => speedUpgradeCost;
+        public float SpeedUpgradeMetresPerSecond => speedUpgradeMetresPerSecond;
         public int ModuleCount => moduleCount;
         public bool Transition => transition;
         public TransitionTurn Turn => transitionTurn;
@@ -42,8 +47,23 @@ namespace Lotba.Game
     public sealed class RouteDefinition : ScriptableObject
     {
         [SerializeField] private RouteSection[] sections;
-        [Tooltip("Target for the last scheduled letter, in modules from the start of the final section. Zero uses default spacing.")]
+        [SerializeField, Min(0f)] private float finalSectionSpeedBonus = 7f;
+        [SerializeField, Min(1f)] private float finalSectionAccelerationDistance = 1800f;
+        public float FinalSectionSpeedBonus => finalSectionSpeedBonus;
+
+        public float SpeedBonusAt(float distance)
+        {
+            int index = SectionAt(distance, out float start);
+            if (index != sections.Length - 1) return 0f;
+            float span = finalSectionAccelerationDistance;
+            if (sections[index].ModuleCount > 0)
+                span = Mathf.Min(span, sections[index].ModuleCount * RoadStandard.ModuleLength);
+            return finalSectionSpeedBonus * Mathf.Clamp01((distance - start) / Mathf.Max(1f, span));
+        }
+        [Tooltip("Target for the last scheduled letter, in modules from the selected zone or final section.")]
         [SerializeField, Min(0)] private int lastLetterFinalSectionModule;
+        [SerializeField] private MapDefinition lastLetterZone;
+        public MapDefinition LastLetterZone => lastLetterZone;
         public int LastLetterFinalSectionModule => lastLetterFinalSectionModule;
         public float FinishDistance
         {
@@ -121,6 +141,43 @@ namespace Lotba.Game
             return sections.Length - 1;
         }
         public MapDefinition MapAtDistance(float distance) => sections[SectionAt(distance, out _)].Map;
+        public bool HasDecision(int index) => sections[index].ModuleCount > 0 &&
+            (sections[index].Transition || (index > 0 && index < sections.Length - 1));
+
+        public RouteSection SpeedOfferAt(int index) =>
+            sections[index].Transition && sections[index].SpeedUpgradeCost == 0 && index > 0
+                ? sections[index - 1] : sections[index];
+
+        public float MaximumDecisionSpeed
+        {
+            get
+            {
+                float total = 0f;
+                int temporaryOffers = 0;
+                for (int index = 0; index < sections.Length; index++)
+                {
+                    if (!HasDecision(index)) continue;
+                    RouteSection offer = SpeedOfferAt(index);
+                    if (offer.SpeedUpgradeCost > 0) total += offer.SpeedUpgradeMetresPerSecond;
+                    else temporaryOffers++;
+                }
+                return total + RunSession.RiskSpeedForFullIntensity * Mathf.Min(1f, temporaryOffers / 3f);
+            }
+        }
+
+        public bool TouchesDecisionApproach(float from, float to)
+        {
+            int index = SectionAt(from, out float start);
+            for (; index < sections.Length && start <= to; index++)
+            {
+                float length = sections[index].ModuleCount * RoadStandard.ModuleLength;
+                float midpoint = start + length * .5f;
+                if (HasDecision(index) && from <= midpoint + Mathf.Min(14f, length * .25f) &&
+                    to >= midpoint - Mathf.Min(24f, length * .25f)) return true;
+                start += length;
+            }
+            return false;
+        }
         public MapDefinition MapAtModule(int moduleIndex)
         {
             return sections[SectionAt(Mathf.Max(0, moduleIndex) * RoadStandard.ModuleLength, out _)].Map;

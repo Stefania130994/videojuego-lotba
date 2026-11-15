@@ -135,5 +135,4 @@ MonoBehaviour:
     m_RotationOrder: 4
   cameraFollowTime: 0.13
   cameraFollowStrength: 0.95
-  firstMultiplierGems: 200
-  extraGemsPerMultiplier: 100
+  turboChargeGems: 40

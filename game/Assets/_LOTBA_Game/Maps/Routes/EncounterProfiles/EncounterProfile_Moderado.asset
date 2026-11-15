@@ -7,9 +7,10 @@ MonoBehaviour:
   m_Enabled: 1
   m_Script: {fileID: 11500000, guid: 715aafaee0f5451d9d3c310173d4ba27, type: 3}
   m_Name: EncounterProfile_Moderado
-  gemInterval: 33
+  vehiclePatternInterval: 190
+  gemInterval: 37
   gemThreads: 1
   gemsPerThread: 3
   gemSpacing: 2.5
-  obstacleInterval: 28
+  obstacleInterval: 25
   obstacleClearance: 11

@@ -97,7 +97,7 @@ namespace Lotba.Game
             try
             {
                 long duration = Mathf.Max(1, Mathf.CeilToInt(remaining * 1000f));
-                int amplitude = 22 + (vibrationLevel - 1) * 14;
+                int amplitude = 12 + (vibrationLevel - 1) * 8;
                 using (var effects = new AndroidJavaClass("android.os.VibrationEffect"))
                 using (var effect = effects.CallStatic<AndroidJavaObject>("createOneShot", duration, amplitude))
                     vibrator.Call("vibrate", effect);

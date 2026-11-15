@@ -7,6 +7,14 @@ namespace Lotba.Game
     public sealed class AudioManager : MonoBehaviour
     {
         private AudioSource source;
+        private AudioSource musicSource, interfaceSource;
+        [Header("Background music")]
+        [SerializeField] private AudioClip backgroundMusic;
+        [SerializeField, Range(0f, 1f)] private float backgroundMusicVolume = .35f;
+        [Header("UI sounds")]
+        [SerializeField] private AudioClip uiClick, brakeButton, boostButton;
+        [SerializeField, Range(0f, 1f)] private float uiClickVolume = .35f, brakeButtonVolume = .55f, boostButtonVolume = .3f;
+        [Header("Gameplay sounds")]
         private readonly AudioSource[] airborneSources = new AudioSource[4];
         [SerializeField] private AudioClip gemPickup;
         [SerializeField, Range(0f, 1f)] private float gemPickupVolume = .7f;
@@ -19,13 +27,19 @@ namespace Lotba.Game
         [SerializeField] private AudioClip collision;
         [SerializeField, Range(0f, 1f)] private float collisionVolume = .65f;
         [Header("Boost")]
+        [SerializeField] private AudioClip decisionShown;
+        [SerializeField, Range(0f, 1f)] private float decisionShownVolume = .55f;
+        public void PlayDecisionShown() => PlayInterface(decisionShown, decisionShownVolume);
+        [SerializeField] private AudioClip boostReady;
+        [SerializeField, Range(0f, 1f)] private float boostReadyVolume = .5f;
         [SerializeField] private AudioClip boostStart;
         [SerializeField, Range(0f, 1f)] private float boostStartVolume = .7f;
         [SerializeField] private AudioClip boostCollision;
         [SerializeField, Range(0f, 1f)] private float boostCollisionVolume = .8f;
+        [Header("Gem loss")]
+        [SerializeField] private AudioClip gemLoss, boostGemLoss;
+        [SerializeField, Range(0f, 1f)] private float gemLossVolume = .45f, boostGemLossVolume = .35f;
         [Header("Streak")]
-        [SerializeField] private AudioClip streakLevelUp;
-        [SerializeField, Range(0f, 1f)] private float streakLevelUpVolume = .7f;
         [Header("Word collection")]
         [SerializeField] private AudioClip letterPickup;
         [SerializeField, Range(0f, 1f)] private float letterPickupVolume = .7f;
@@ -37,6 +51,9 @@ namespace Lotba.Game
         {
             source = GetComponent<AudioSource>();
             source.playOnAwake = false;
+            musicSource = CreateAuxiliarySource();
+            musicSource.loop = true;
+            interfaceSource = CreateAuxiliarySource();
             for (int i = 0; i < airborneSources.Length; i++)
             {
                 AudioSource voice = gameObject.AddComponent<AudioSource>();
@@ -47,11 +64,48 @@ namespace Lotba.Game
             }
         }
 
+        private AudioSource CreateAuxiliarySource()
+        {
+            var voice = gameObject.AddComponent<AudioSource>();
+            voice.playOnAwake = false;
+            voice.mute = Muted;
+            voice.outputAudioMixerGroup = source.outputAudioMixerGroup;
+            return voice;
+        }
+
+        public void UpdateMusic(RunState state)
+        {
+            if (backgroundMusic == null || state == RunState.Finished || state == RunState.Ready)
+            {
+                musicSource.Stop();
+                musicSource.clip = null;
+                return;
+            }
+            if (state == RunState.Paused)
+            {
+                musicSource.Pause();
+                return;
+            }
+            musicSource.volume = backgroundMusicVolume;
+            if (musicSource.clip == backgroundMusic) musicSource.UnPause();
+            else
+            {
+                musicSource.clip = backgroundMusic;
+                musicSource.Play();
+            }
+        }
+
         public void SetMuted(bool muted)
         {
             if (source == null) source = GetComponent<AudioSource>();
             Muted = muted;
             source.mute = muted;
+            if (musicSource != null) musicSource.mute = muted;
+            if (interfaceSource != null)
+            {
+                interfaceSource.mute = muted;
+                if (muted) interfaceSource.Stop();
+            }
             if (muted) Stop();
         }
 
@@ -69,13 +123,26 @@ namespace Lotba.Game
         }
         public void PlayLaneSlide() => Play(laneSlide, laneSlideVolume);
         public void PlayJump() => Play(jump, jumpVolume);
+        public void PlayGemLoss(bool duringBoost)
+        {
+            Play(gemLoss, gemLossVolume);
+            if (duringBoost) Play(boostGemLoss, boostGemLossVolume);
+        }
         public void PlayBoostStart() => Play(boostStart, boostStartVolume);
+        public void PlayBoostReady() => Play(boostReady, boostReadyVolume);
+        public void PlayUiClick() => PlayInterface(uiClick, uiClickVolume);
+        public void PlayBrakeButton() => PlayInterface(brakeButton, brakeButtonVolume);
+        public void PlayBoostButton() => PlayInterface(boostButton, boostButtonVolume);
+
+        private void PlayInterface(AudioClip clip, float volume)
+        {
+            if (!Muted && clip != null) interfaceSource.PlayOneShot(clip, volume);
+        }
         public void PlayCollision(bool duringBoost)
         {
-            if (duringBoost && boostCollision != null) Play(boostCollision, boostCollisionVolume);
-            else Play(collision, collisionVolume);
+            Play(collision, collisionVolume);
+            if (duringBoost) Play(boostCollision, boostCollisionVolume);
         }
-        public void PlayStreakLevelUp() => Play(streakLevelUp, streakLevelUpVolume);
         public void PlayLetterPickup() => Play(letterPickup, letterPickupVolume);
         public void PlayWordCompleted() => Play(wordCompleted, wordCompletedVolume);
 

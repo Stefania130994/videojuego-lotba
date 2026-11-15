@@ -54,6 +54,7 @@ MonoBehaviour:
   m_Name:
   m_EditorClassIdentifier: Lotba.Game::Lotba.Game.SpeedGauge
   speedLabel: {fileID: 8641416489337417626}
+  speedUnits: {fileID: 3560983974421067456}
   activeArc: {fileID: 7874025621000000007}
   needlePivot: {fileID: 7874025621000000009}
   minimumNeedleAngle: 180
@@ -488,8 +489,8 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 6643245383268987976}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.24, y: 0.005}
-  m_AnchorMax: {x: 0.76, y: 0.15}
+  m_AnchorMin: {x: 0.24, y: 0.04}
+  m_AnchorMax: {x: 0.76, y: 0.22}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -565,9 +566,9 @@ MonoBehaviour:
   m_lineSpacingMax: 0
   m_paragraphSpacing: 0
   m_charWidthMaxAdj: 0
-  m_TextWrappingMode: 1
+  m_TextWrappingMode: 0
   m_wordWrappingRatios: 0.4
-  m_overflowMode: 1
+  m_overflowMode: 0
   m_linkedTextComponent: {fileID: 0}
   parentLinkedComponent: {fileID: 0}
   m_enableKerning: 0

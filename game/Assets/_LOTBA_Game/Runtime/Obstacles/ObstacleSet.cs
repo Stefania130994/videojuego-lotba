@@ -3,7 +3,11 @@ using UnityEngine;
 
 namespace Lotba.Game
 {
-    public enum VehiclePattern { RampArticulated, Articulated, ArticulatedPair, RoofBridge, RoofJump, RampBarricade, BusConvoy }
+    public enum VehiclePattern
+    {
+        RampArticulated, Articulated, ArticulatedPair, RoofBridge, RoofJump, RampBarricade, BusConvoy,
+        RampConvoy, FlankedRamp, AlternatingBuses, ArticulatedRoofBridge
+    }
     /// <summary>Per-map selection data; replacing visuals or changing available traffic needs no generator changes.</summary>
     [CreateAssetMenu(menuName = "LOTBA/Obstacles/Obstacle set")]
     public sealed class ObstacleSet : ScriptableObject
@@ -13,6 +17,19 @@ namespace Lotba.Game
         [SerializeField] private ObstacleDefinition elevatedBus;
         [SerializeField] private VehiclePattern[] vehiclePatterns;
         public ObstacleDefinition ElevatedBus => elevatedBus;
+        public ObstacleDefinition PickPatternVehicle(System.Random random)
+        {
+            int count = 0;
+            var selected = elevatedBus;
+            if (traffic == null || elevatedBus == null) return selected;
+            foreach (var candidate in traffic)
+            {
+                if (candidate == null || candidate.Length != elevatedBus.Length ||
+                    candidate.Height != elevatedBus.Height || candidate.Width != elevatedBus.Width) continue;
+                if (random.Next(++count) == 0) selected = candidate;
+            }
+            return selected;
+        }
         public VehiclePattern[] VehiclePatterns => vehiclePatterns;
         public ObstacleDefinition[] Low => low;
         public ObstacleDefinition[] Traffic => traffic;

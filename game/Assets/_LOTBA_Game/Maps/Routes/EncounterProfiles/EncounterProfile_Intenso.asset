@@ -7,7 +7,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_Script: {fileID: 11500000, guid: 715aafaee0f5451d9d3c310173d4ba27, type: 3}
   m_Name: EncounterProfile_Intenso
-  gemInterval: 40
+  gemInterval: 45
   parallelThreadChance: 0.15
   laneChangeChance: 0.45
   gemIntervalVariation: 0.20
@@ -15,5 +15,5 @@ MonoBehaviour:
   gemThreads: 2
   gemsPerThread: 7
   gemSpacing: 2.5
-  obstacleInterval: 16
+  obstacleInterval: 14
   obstacleClearance: 7
