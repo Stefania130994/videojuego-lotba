@@ -81,7 +81,7 @@ namespace Lotba.Game
             if (State != RunState.Ready) return;
             State = RunState.Running;
             if (telemetryRoute == null) return;
-            Telemetry = new RunTelemetry { route = telemetryRoute.name, seed = settings.Seed, routeDistanceMetres = finishDistance };
+            Telemetry = new RunTelemetry { route = telemetryRoute.name, seed = settings.Seed, routeDistanceMetres = finishDistance, startedAtUtc = DateTime.UtcNow.ToString("O") };
             ScheduleNextSpeedOffer();
             Record("run_started");
         }
@@ -256,6 +256,7 @@ namespace Lotba.Game
             OfferPending = false;
             if (Telemetry != null)
             {
+                Telemetry.finishedAtUtc = DateTime.UtcNow.ToString("O");
                 string reason = ending == RunEnding.Brake ? "brake" : "route_complete";
                 Record("run_finished", reason);
                 Telemetry.summary = new RunTelemetrySummary

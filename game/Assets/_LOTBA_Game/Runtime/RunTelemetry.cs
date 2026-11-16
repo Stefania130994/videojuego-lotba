@@ -10,6 +10,8 @@ namespace Lotba.Game
         public int schemaVersion = 13;
         public string runId = Guid.NewGuid().ToString("N");
         public string gameVersion = Application.version;
+        public string startedAtUtc;
+        public string finishedAtUtc;
         public string route;
         public int seed;
         public float durationSeconds;
