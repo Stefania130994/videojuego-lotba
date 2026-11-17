@@ -37,11 +37,13 @@ namespace Lotba.Game
         [SerializeField] private TMPro.TMP_Text wordLabel;
         private Vector2 wordBannerVisiblePosition;
         private float wordBannerStarted, wordBannerUntil;
-        private float gemPulseUntil;
+        private const float ScorePulseDuration = .24f;
+        private float scorePulseUntil;
         private int previousGemBalance;
         private long previousScore;
         private float previousHudWidth;
         [SerializeField] private RectTransform speedOffer;
+        [SerializeField] private GameObject modalShade, paceAlmostBadge, paceShortfallBadge;
         private Sprite availablePaceIcon, availableGemIcon;
         [SerializeField] private Sprite unavailablePaceIcon, unavailableGemIcon;
         [SerializeField] private UnityEngine.UI.Image paceCardIcon, paceCardGemIcon;
@@ -56,7 +58,7 @@ namespace Lotba.Game
         [SerializeField] private UnityEngine.UI.Button turboButton;
         [SerializeField] private UnityEngine.UI.Image turboFill;
         [SerializeField] private UnityEngine.UI.Image turboBolt;
-        private Vector3 gemsRestScale;
+        private Vector3 scoreRestScale;
         public bool SettingsOpen { get; private set; }
         [SerializeField] private RunTelemetryPanel telemetryPanel;
         public bool TelemetryOpen => telemetryPanel != null && telemetryPanel.IsOpen;
@@ -77,7 +79,7 @@ namespace Lotba.Game
             milestoneFillEnd = milestoneFill.anchorMax;
             milestoneRiderMin = milestoneRider.anchorMin;
             milestoneRiderMax = milestoneRider.anchorMax;
-            gemsRestScale = gems.rectTransform.localScale;
+            scoreRestScale = score.rectTransform.localScale;
             paceCardGraphics = increaseSpeedButton.GetComponentsInChildren<UnityEngine.UI.Graphic>(true);
             paceCardColors = Array.ConvertAll(paceCardGraphics, graphic => graphic.color);
             availablePaceIcon = paceCardIcon.sprite;
@@ -205,7 +207,7 @@ namespace Lotba.Game
             SettingsOpen = false;
             ClearRankingOffer();
             endingBackground.gameObject.SetActive(false);
-            gemPulseUntil = 0f;
+            scorePulseUntil = 0f;
             previousGemBalance = -1;
             previousScore = -1;
             previousHudWidth = -1f;
@@ -276,7 +278,10 @@ namespace Lotba.Game
             bool openingEnding = finished && !endingBackground.gameObject.activeSelf;
             if (finished) SettingsOpen = false;
             readyPanel.SetActive(session.State == RunState.Ready && !SettingsOpen && !RankingOpen);
-            pausePanel.SetActive(session.State == RunState.Paused && !SettingsOpen);
+            bool showPause = session.State == RunState.Paused && !SettingsOpen;
+            bool showOffer = running && session.OfferPending;
+            pausePanel.SetActive(showPause);
+            if (modalShade != null) modalShade.SetActive(showPause || showOffer);
             settingsPanel.SetActive(SettingsOpen);
             telemetryPanel?.SetReport(finished ? session.Telemetry : null);
             if (finished) RenderEnding(session.Ending, openingEnding, settings);
@@ -291,11 +296,15 @@ namespace Lotba.Game
             pause.interactable = !SettingsOpen && !session.OfferPending;
             if (speedOffer != null)
             {
-                speedOffer.gameObject.SetActive(running && session.OfferPending);
+                speedOffer.gameObject.SetActive(showOffer);
                 if (speedOffer.gameObject.activeSelf)
                 {
                     bool upgrade = session.UpgradeCost > 0;
                     bool availableToBuy = !upgrade || session.CanBuySpeed;
+                    bool showShortfall = upgrade && !availableToBuy;
+                    if (paceShortfallBadge != null) paceShortfallBadge.SetActive(showShortfall);
+                    if (paceAlmostBadge != null)
+                        paceAlmostBadge.SetActive(showShortfall);
                     if (increaseSpeedButton.interactable != availableToBuy)
                     {
                         increaseSpeedButton.interactable = availableToBuy;
@@ -311,7 +320,9 @@ namespace Lotba.Game
                     increaseSpeedPriceBadge.gameObject.SetActive(upgrade);
                     if (upgrade)
                     {
-                        string price = session.UpgradeCost.ToString();
+                        string price = showShortfall
+                            ? $"{session.GemBalance} / {session.UpgradeCost}"
+                            : session.UpgradeCost.ToString();
                         increaseSpeedPrice.text = price;
                         float available = ((RectTransform)increaseSpeedPriceBadge.parent).rect.width * .88f;
                         float preferred = increaseSpeedPrice.GetPreferredValues(price).x;
@@ -333,30 +344,30 @@ namespace Lotba.Game
             previousHudWidth = hudWidth;
             if (hudResized || session.GemBalance != previousGemBalance)
             {
-                if (previousGemBalance >= 0 && session.GemBalance > previousGemBalance)
-                    gemPulseUntil = Time.unscaledTime + .24f;
                 previousGemBalance = session.GemBalance;
                 gems.text = $"{session.GemBalance} ×";
                 ResizeCounter(gems, hudWidth * .27f);
             }
-            float gemPulse = running ? Mathf.Clamp01((gemPulseUntil - Time.unscaledTime) / .24f) : 0f;
-            gems.rectTransform.localScale = gemsRestScale * (1f + Mathf.Sin(gemPulse * Mathf.PI) * .18f);
             if (hudResized || session.Score != previousScore)
             {
+                if (running && previousScore >= 0 && session.Score > previousScore)
+                    scorePulseUntil = Time.unscaledTime + ScorePulseDuration;
                 previousScore = session.Score;
                 score.text = session.Score.ToString();
                 ResizeCounter(score, hudWidth * .40f);
             }
+            float scorePulse = running ? Mathf.Clamp01((scorePulseUntil - Time.unscaledTime) / ScorePulseDuration) : 0f;
+            score.rectTransform.localScale = scoreRestScale * (1f + Mathf.Sin(scorePulse * Mathf.PI) * .18f);
             gauge.SetSpeed(session.Speed, settings.InitialSpeed, session.PurchasedSpeed, session.Elapsed, settings.Brand,
                 running && !session.OfferPending);
             if (SettingsOpen)
             {
-                soundSwitch.color = muted ? new Color32(74, 94, 111, 255) : new Color32(30, 202, 113, 255);
+                soundSwitch.color = muted ? Color.Lerp(settings.Brand.Black, settings.Brand.White, .35f) : settings.Brand.Green;
                 soundSwitchKnob.anchorMin = muted ? new Vector2(1f - soundOnMax.x, soundOnMin.y) : soundOnMin;
                 soundSwitchKnob.anchorMax = muted ? new Vector2(1f - soundOnMin.x, soundOnMax.y) : soundOnMax;
                 vibrationButton.interactable = devices.VibrationAvailable;
                 vibrationLabel.text = devices.VibrationAvailable ? devices.VibrationLevelLabel : "NO DISPONIBLE";
-                vibrationLabel.color = devices.VibrationAvailable ? Color.white : new Color32(255, 156, 144, 255);
+                vibrationLabel.color = devices.VibrationAvailable ? settings.Brand.White : settings.Brand.Pink;
             }
             if (openingEnding)
             {
