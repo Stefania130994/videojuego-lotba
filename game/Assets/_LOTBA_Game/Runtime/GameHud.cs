@@ -39,7 +39,8 @@ namespace Lotba.Game
         private float wordBannerStarted, wordBannerUntil;
         private float gemPulseUntil;
         private int previousGemBalance;
-        private RectTransform gemPanel;
+        private long previousScore;
+        private float previousHudWidth;
         [SerializeField] private RectTransform speedOffer;
         private Sprite availablePaceIcon, availableGemIcon;
         [SerializeField] private Sprite unavailablePaceIcon, unavailableGemIcon;
@@ -55,7 +56,7 @@ namespace Lotba.Game
         [SerializeField] private UnityEngine.UI.Button turboButton;
         [SerializeField] private UnityEngine.UI.Image turboFill;
         [SerializeField] private UnityEngine.UI.Image turboBolt;
-        private Vector3 turboRestScale, gemsRestScale;
+        private Vector3 gemsRestScale;
         public bool SettingsOpen { get; private set; }
         [SerializeField] private RunTelemetryPanel telemetryPanel;
         public bool TelemetryOpen => telemetryPanel != null && telemetryPanel.IsOpen;
@@ -69,8 +70,6 @@ namespace Lotba.Game
         private void Awake()
         {
             ApplyIdentity();
-            gemPanel = (RectTransform)gems.transform.parent;
-            ResizeGemCounter();
             wordBannerVisiblePosition = wordBanner.anchoredPosition;
             wordBanner.gameObject.SetActive(false);
             soundOnMin = soundSwitchKnob.anchorMin;
@@ -78,7 +77,6 @@ namespace Lotba.Game
             milestoneFillEnd = milestoneFill.anchorMax;
             milestoneRiderMin = milestoneRider.anchorMin;
             milestoneRiderMax = milestoneRider.anchorMax;
-            turboRestScale = turboButton.transform.localScale;
             gemsRestScale = gems.rectTransform.localScale;
             paceCardGraphics = increaseSpeedButton.GetComponentsInChildren<UnityEngine.UI.Graphic>(true);
             paceCardColors = Array.ConvertAll(paceCardGraphics, graphic => graphic.color);
@@ -209,19 +207,20 @@ namespace Lotba.Game
             endingBackground.gameObject.SetActive(false);
             gemPulseUntil = 0f;
             previousGemBalance = -1;
+            previousScore = -1;
+            previousHudWidth = -1f;
             telemetryPanel?.SetReport(null);
             wordBannerUntil = 0;
             if (wordBanner != null) wordBanner.gameObject.SetActive(false);
         }
 
-        private void ResizeGemCounter()
+        private static void ResizeCounter(TMPro.TMP_Text label, float maxWidth)
         {
-            const float iconAndPadding = 52f;
-            gems.fontSize = 24f;
-            float textWidth = gems.GetPreferredValues(gems.text, Mathf.Infinity, Mathf.Infinity).x;
-            float width = Mathf.Min(250f, textWidth * 1.18f + iconAndPadding);
-            gems.fontSize *= Mathf.Min(1f, (width - iconAndPadding) / Mathf.Max(1f, textWidth * 1.18f));
-            gemPanel.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
+            var panel = (RectTransform)label.transform.parent;
+            float padding = -label.rectTransform.sizeDelta.x;
+            float textWidth = label.GetPreferredValues(label.text, Mathf.Infinity, Mathf.Infinity).x;
+            panel.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal,
+                Mathf.Min(textWidth + padding, maxWidth));
         }
 
 
@@ -236,8 +235,7 @@ namespace Lotba.Game
                     continue;
                 }
                 if (i > 0 && word[i - 1] != ' ') text.Append(' ');
-                if (collected[i]) text.Append("<color=#FFD14C>").Append(word[i]).Append("</color>");
-                else text.Append('_');
+                text.Append(collected[i] ? word[i] : '_');
             }
             wordLabel.text = text.ToString();
             if (!wordBanner.gameObject.activeSelf || Time.unscaledTime >= wordBannerUntil)
@@ -285,13 +283,8 @@ namespace Lotba.Game
             else resultPanel.SetActive(false);
             raceHud.SetActive(active); controls.SetActive(active);
             turboButton.interactable = running && !SettingsOpen && session.CanActivateTurbo;
-            turboFill.fillAmount = session.BoostActive ? session.BoostProgress : session.TurboChargeProgress;
+            turboFill.fillAmount = session.TurboChargeProgress;
             turboBolt.enabled = turboButton.interactable && turboBolt.sprite != null;
-            float beat = Mathf.Repeat(Time.unscaledTime, 1.1f);
-            float primary = Mathf.Max(0f, 1f - Mathf.Abs(beat - .12f) / .12f);
-            float secondary = Mathf.Max(0f, 1f - Mathf.Abs(beat - .34f) / .10f);
-            float pulse = turboButton.interactable ? .14f * primary * primary + .08f * secondary * secondary : 0f;
-            turboButton.transform.localScale = turboRestScale * (1f - pulse);
 
             if (boostSpeedLines != null) boostSpeedLines.Render(settings, session, showBoostLines);
             RenderWordBanner(running);
@@ -335,18 +328,26 @@ namespace Lotba.Game
                 milestoneRider.anchorMin = new Vector2(milestoneRiderMin.x, milestoneRiderMin.y + progress);
                 milestoneRider.anchorMax = new Vector2(milestoneRiderMax.x, milestoneRiderMax.y + progress);
             }
-            if (session.GemBalance != previousGemBalance)
+            float hudWidth = ((RectTransform)raceHud.transform).rect.width;
+            bool hudResized = !Mathf.Approximately(hudWidth, previousHudWidth);
+            previousHudWidth = hudWidth;
+            if (hudResized || session.GemBalance != previousGemBalance)
             {
                 if (previousGemBalance >= 0 && session.GemBalance > previousGemBalance)
                     gemPulseUntil = Time.unscaledTime + .24f;
                 previousGemBalance = session.GemBalance;
                 gems.text = $"{session.GemBalance} ×";
-                ResizeGemCounter();
+                ResizeCounter(gems, hudWidth * .27f);
             }
             float gemPulse = running ? Mathf.Clamp01((gemPulseUntil - Time.unscaledTime) / .24f) : 0f;
             gems.rectTransform.localScale = gemsRestScale * (1f + Mathf.Sin(gemPulse * Mathf.PI) * .18f);
-            score.text = session.Score.ToString();
-            gauge.SetSpeed(session.Speed, settings.InitialSpeed, session.PurchasedSpeed, session.Elapsed,
+            if (hudResized || session.Score != previousScore)
+            {
+                previousScore = session.Score;
+                score.text = session.Score.ToString();
+                ResizeCounter(score, hudWidth * .40f);
+            }
+            gauge.SetSpeed(session.Speed, settings.InitialSpeed, session.PurchasedSpeed, session.Elapsed, settings.Brand,
                 running && !session.OfferPending);
             if (SettingsOpen)
             {
