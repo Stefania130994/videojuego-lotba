@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace Lotba.Game
 {
@@ -7,8 +8,12 @@ namespace Lotba.Game
     public sealed class GameSettings : ScriptableObject
     {
         [SerializeField, Min(1f)] private float initialSpeed = 18f;
-        [SerializeField, Min(1f)] private float maximumSpeed = 30f;
+        [FormerlySerializedAs("maximumSpeed")]
+        [SerializeField, Min(1f), Tooltip("Objetivo de la aceleración inicial. La aceleración sostenida continúa después.")]
+        private float cruiseSpeed = 30f;
         [SerializeField, Min(1f)] private float accelerationTime = 95f;
+        [SerializeField, Min(0f), Tooltip("Aceleración sostenida en m/s² durante toda la partida.")]
+        private float sustainedAcceleration = .02f;
         [SerializeField] private Shader riderImpactShader;
         public Shader RiderImpactShader => riderImpactShader;
         [Header("Boost effects")]
@@ -110,10 +115,14 @@ namespace Lotba.Game
         public float CameraFollowStrength => cameraFollowStrength;
         [Header("Progression")]
         [SerializeField, Min(1)] private int turboChargeGems = 40;
+        [SerializeField, Min(.25f), Tooltip("Multiplicador de frecuencia de obstáculos en la carrera.")]
+        private float baseObstacleIntensity = 1f;
         public int TurboChargeGems => Mathf.Max(1, turboChargeGems);
+        public float BaseObstacleIntensity => Mathf.Max(.25f, baseObstacleIntensity);
         public float InitialSpeed => initialSpeed;
-        public float MaximumSpeed => Mathf.Max(initialSpeed, maximumSpeed);
+        public float CruiseSpeed => Mathf.Max(initialSpeed, cruiseSpeed);
         public float AccelerationTime => accelerationTime;
+        public float SustainedAcceleration => Mathf.Max(0f, sustainedAcceleration);
         public float LaneChangeTime => laneChangeTime;
         public float PatternSpacingAt(float distance) =>
             Mathf.Max(1f, Mathf.Lerp(initialPatternSpacing, finalPatternSpacing, distance / Mathf.Max(1f, patternRampDistance)));

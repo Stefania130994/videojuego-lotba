@@ -134,7 +134,7 @@ namespace Lotba.Game
                         if (session.State == RunState.Running)
                         {
                             world.SetEncounterIntensity(1f + .35f * session.AccumulatedRisk,
-                                1f + .75f * session.AccumulatedRisk);
+                                settings.BaseObstacleIntensity * (1f + .75f * session.AccumulatedRisk));
                             int previousDecisions = session.DecisionsShown;
                             world.Advance(session, step, false, UseBoostCamera, IsHighQuality);
                             if (session.DecisionsShown > previousDecisions) audioFeedback.PlayDecisionShown();

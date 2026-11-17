@@ -346,7 +346,7 @@ namespace Lotba.Game
         }
 #endif
 
-        private bool TrySpawnElevatedEncounter(float riderDistance)
+        private bool TrySpawnElevatedEncounter(float riderDistance, float speed)
         {
             float start = nextPatternDistance;
             if (start < nextElevatedDistance || start < nextVehicleSafeDistance || courseScenery != null) return false;
@@ -369,7 +369,7 @@ namespace Lotba.Game
             float roofStart = start + CourseRampLength;
             // Give a roof jump enough deck to land at boost speed.
             float landing = roofStart + bus.Length + 12f;
-            float laneSwitchGap = VehicleLaneSwitchGap(route, catalog);
+            float laneSwitchGap = VehicleLaneSwitchGap(speed, catalog);
             float end;
             switch (pattern)
             {
@@ -499,7 +499,7 @@ namespace Lotba.Game
             lastPatternEnd = end;
             nextVehicleSafeDistance = end + exitClearance;
             nextPatternDistance = end + exitClearance;
-            nextElevatedDistance = start + (section.EncounterProfile?.VehiclePatternInterval ?? ElevatedInterval);
+            nextElevatedDistance = start + (section.EncounterProfile?.VehiclePatternInterval ?? ElevatedInterval) / obstacleIntensity;
             return true;
         }
 
@@ -947,7 +947,7 @@ namespace Lotba.Game
             FollowRider(x, reducedMotion, dt);
             if (session.IsProtected && !reducedMotion) return;
             float pace = session.Speed - (session.BoostActive ? RunSession.BoostSpeed : 0f);
-            float intensity = Mathf.InverseLerp(settings.InitialSpeed, settings.MaximumSpeed, pace);
+            float intensity = Mathf.InverseLerp(settings.InitialSpeed, settings.CruiseSpeed, pace);
             float targetFieldOfView = reducedMotion ? 60f : Mathf.Lerp(60f, 68f, intensity) +
                 settings.BoostCameraFieldOfView * boostCameraBlend;
             SetFieldOfView(Mathf.Lerp(referenceFieldOfView, targetFieldOfView, 1f - Mathf.Exp(-10f * dt)));
@@ -957,7 +957,7 @@ namespace Lotba.Game
         {
             using (PrepareOpeningMarker.Auto())
             {
-                SetEncounterIntensity(1f, 1f);
+                SetEncounterIntensity(1f, settings.BaseObstacleIntensity);
                 PopulateAhead(0f, settings.InitialSpeed);
             }
         }
@@ -988,14 +988,14 @@ namespace Lotba.Game
                 if (SkipVehicleCourse(ref nextPatternDistance)) continue;
 #endif
 
-                if (TrySpawnElevatedEncounter(distance) || TrySpawnProfileEncounter(distance)) continue;
+                if (TrySpawnElevatedEncounter(distance, speed) || TrySpawnProfileEncounter(distance, speed)) continue;
                 if (nextPatternDistance < nextVehicleSafeDistance)
                 {
                     nextPatternDistance = nextVehicleSafeDistance;
                     continue;
                 }
-                lastPatternEnd = SpawnPattern(nextPatternDistance, distance);
-                nextPatternDistance = Mathf.Max(nextPatternDistance + settings.PatternSpacingAt(nextPatternDistance),
+                lastPatternEnd = SpawnPattern(nextPatternDistance, distance, speed);
+                nextPatternDistance = Mathf.Max(nextPatternDistance + settings.PatternSpacingAt(nextPatternDistance) / obstacleIntensity,
                     lastPatternEnd + settings.PatternClearance);
             }
         }
@@ -1071,7 +1071,7 @@ namespace Lotba.Game
             }
         }
 
-        private bool TrySpawnProfileEncounter(float riderDistance)
+        private bool TrySpawnProfileEncounter(float riderDistance, float speed)
         {
             float distance = nextPatternDistance;
             RouteDefinition route = roadStream.Route;
@@ -1132,11 +1132,12 @@ namespace Lotba.Game
             {
                 ObstacleSet catalog = obstacleOverride != null ? obstacleOverride : section.Map.Obstacles;
                 // Leave a free path and enough distance to read and change lanes.
-                float clearance = Mathf.Max(profile.ObstacleClearance, VehicleLaneSwitchGap(route, catalog));
+                float clearance = Mathf.Max(profile.ObstacleClearance, VehicleLaneSwitchGap(speed, catalog));
                 float maximumLength = Mathf.Min(distance < 220f ? 4.5f : float.PositiveInfinity, end - distance - clearance);
                 int lane = (safeLane + 1 + random.Next(2)) % 3;
                 float occupied = PlaceObstacle(catalog, wave % 3 == 0, lane, distance - riderDistance, maximumLength);
-                if (occupied > 0f && catalog?.ElevatedBus != null && wave % 2 == 1)
+                if (occupied > 0f && ((catalog?.ElevatedBus != null && wave % 2 == 1) ||
+                    (obstacleIntensity > 1f && random.NextDouble() < Mathf.Clamp01(obstacleIntensity - 1f))))
                 {
                     int otherLane = 3 - safeLane - lane;
                     occupied = Mathf.Max(occupied,
@@ -1156,16 +1157,16 @@ namespace Lotba.Game
             return true;
         }
 
-        private float VehicleLaneSwitchGap(RouteDefinition route, ObstacleSet catalog = null)
+        private float VehicleLaneSwitchGap(float speed, ObstacleSet catalog = null)
         {
-            float topSpeed = settings.MaximumSpeed + route.FinalSectionSpeedBonus +
-                route.MaximumDecisionSpeed + RunSession.BoostSpeed;
+            // Budget for a turbo activation while approaching an encounter already on the track.
+            float approachSpeed = Mathf.Max(speed, settings.InitialSpeed) + RunSession.BoostSpeed;
             // Allow time to read the second row and make up to two lane changes.
-            return topSpeed * (settings.LaneChangeTime * 2f +
+            return approachSpeed * (settings.LaneChangeTime * 2f +
                 (catalog?.ElevatedBus?.Id == "wood_container" ? .8f : .25f)) + 1.2f;
         }
 
-        private float SpawnPattern(float distance, float riderDistance)
+        private float SpawnPattern(float distance, float riderDistance, float speed)
         {
             safeLane = Mathf.Clamp(safeLane + random.Next(-1, 2), 0, 2);
             float z = distance - riderDistance;
@@ -1196,7 +1197,7 @@ namespace Lotba.Game
             }
             // A jump row blocks at most two lanes; every other row keeps the gem lane clear.
             wave++;
-            return Mathf.Max(patternEnd, obstacleEnd + VehicleLaneSwitchGap(roadStream.Route));
+            return Mathf.Max(patternEnd, obstacleEnd + VehicleLaneSwitchGap(speed, obstacleSet));
         }
 
         private void ResetLetters()

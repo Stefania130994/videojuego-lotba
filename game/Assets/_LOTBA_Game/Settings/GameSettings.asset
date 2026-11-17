@@ -12,9 +12,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f2c7bfd5218df6f4ebb04055bb2d661a, type: 3}
   m_Name: GameSettings
   m_EditorClassIdentifier: Lotba.Game::Lotba.Game.GameSettings
-  initialSpeed: 19
-  maximumSpeed: 32
+  initialSpeed: 28.5
+  cruiseSpeed: 41.5
   accelerationTime: 95
+  sustainedAcceleration: 0.02
+  baseObstacleIntensity: 1.08
   riderImpactShader: {fileID: 4800000, guid: d0754c08401847a0b4258c29d03d1d75, type: 3}
   turboAuraShader: {fileID: 4800000, guid: c60303daed4c47cbba59a4efa5c969c3, type: 3}
   turboAuraTexture: {fileID: 2800000, guid: cf4b287221636c642a8d4fcb4284a493, type: 3}

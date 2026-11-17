@@ -101,7 +101,8 @@ namespace Lotba.Game
             float step = dt;
             Elapsed += step;
             float progression = 1f - (float)Math.Exp(-Elapsed / settings.AccelerationTime);
-            float baseSpeed = settings.InitialSpeed + (settings.MaximumSpeed - settings.InitialSpeed) * progression;
+            float baseSpeed = settings.InitialSpeed + (settings.CruiseSpeed - settings.InitialSpeed) * progression +
+                settings.SustainedAcceleration * Elapsed;
             if (telemetryRoute != null) baseSpeed += telemetryRoute.SpeedBonusAt(Distance);
             float sinceImpact = Elapsed - impactTime;
             float recovery = Math.Min(1f, sinceImpact / ImpactRecoverySeconds);
