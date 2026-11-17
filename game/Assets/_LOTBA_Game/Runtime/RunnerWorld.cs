@@ -163,7 +163,10 @@ namespace Lotba.Game
         private Quaternion cameraRotation;
         private Vector3 cameraVelocity;
         private float boostCameraBlend;
+        private const float GemSpinDegreesPerSecond = 120f;
         private bool pickupEffectsEnabled = true;
+        private bool gemGlowEnabled;
+        private Material[] regularGemMaterials, pinkGemMaterials;
         private const int NormalImpactScatterLimit = 5;
         private const int TurboImpactScatterLimit = 12;
         private readonly Transform[] scatteredGems = new Transform[TurboImpactScatterLimit];
@@ -749,12 +752,44 @@ namespace Lotba.Game
         public void ConfigureDepthBend(bool enabled) => depthBendRequested = enabled;
         public void ConfigurePickupEffects(bool enabled)
         {
+            bool stopGemSpin = pickupEffectsEnabled && !enabled;
             pickupEffectsEnabled = enabled;
             if (enabled) return;
+            if (stopGemSpin)
+            {
+                foreach (TrackItem item in items)
+                    if (item.Active && item.Kind == ItemKind.Gem)
+                        item.View.localRotation = Quaternion.identity;
+            }
             ClearGemScatter();
             if (gemFlash != null) gemFlash.enabled = false;
             if (letterBeam != null) letterBeam.enabled = false;
             UpdateLetterMotes(null, 0f);
+        }
+
+        public void ConfigureGemGlow(bool enabled)
+        {
+            if (gemGlowEnabled == enabled) return;
+            gemGlowEnabled = enabled;
+            foreach (TrackItem item in items)
+                if (item.Active && item.Kind == ItemKind.Gem) UpdateGemGlow(item);
+        }
+
+        private void UpdateGemGlow(TrackItem item)
+        {
+            if (gemGlowEnabled && item.GemGlow == null && settings.GemFlash.Sprite != null)
+            {
+                var glow = new GameObject("Brillo de gema").AddComponent<SpriteRenderer>();
+                glow.transform.SetParent(item.View, false);
+                glow.transform.localScale = Vector3.one * (1.35f / Mathf.Max(.01f, settings.GemFlash.Sprite.bounds.size.x));
+                glow.sprite = settings.GemFlash.Sprite;
+                item.GemGlow = glow;
+            }
+            if (item.GemGlow == null) return;
+            item.GemGlow.enabled = gemGlowEnabled;
+            Color tint = item.Pink ? settings.Brand.Pink : settings.Brand.White;
+            tint.a = .19f;
+            item.GemGlow.color = tint;
         }
 
         private void UpdateDepthBend()
@@ -769,6 +804,7 @@ namespace Lotba.Game
             depthBendStrength = enabled ? strength : 0f;
         }
         public event Action<int, bool> GemFeedback;
+        public event Action<bool, bool> PinkGemMissed;
         public event Action<bool, int> ImpactFeedback;
         public RouteDefinition Route => roadStream.Route;
         private enum ItemKind { Gem, Obstacle }
@@ -782,6 +818,11 @@ namespace Lotba.Game
             public bool ObstacleHit;
             public float? ImpactTime;
             public bool Active;
+            public bool Pink;
+            public bool PinkGemApproached;
+            public MeshRenderer GemMesh;
+            public Vector3 GemRestScale;
+            public SpriteRenderer GemGlow;
         }
         private readonly struct Crossing
         {
@@ -908,7 +949,7 @@ namespace Lotba.Game
                 return;
             }
 #endif
-            for (int i = 0; i < 4; i++) Place(ItemKind.Gem, 1, 10 + i * 3, 1.1f);
+            for (int i = 0; i < 4; i++) Place(ItemKind.Gem, 1, 10 + i * 3, 1.1f, pink: i == 3);
 #if UNITY_EDITOR
             SpawnVehicleCourse();
 #endif
@@ -1007,6 +1048,11 @@ namespace Lotba.Game
             UpdateRiderShadow(x, step.EndHeight, 0f);
             roadStream.Advance(session.Distance);
             crossings.Clear();
+            bool spinGems = pickupEffectsEnabled && !reducedMotion;
+            Quaternion gemRotation = spinGems
+                ? Quaternion.AngleAxis(Mathf.Repeat(session.Elapsed * GemSpinDegreesPerSecond, 360f), Vector3.up)
+                : Quaternion.identity;
+            Quaternion glowRotation = gemGlowEnabled ? Quaternion.Inverse(gemRotation) : Quaternion.identity;
             foreach (TrackItem item in items)
             {
                 if (!item.Active) continue;
@@ -1023,6 +1069,11 @@ namespace Lotba.Game
                 }
                 if (item.Kind == ItemKind.Gem)
                 {
+                    if (pickupEffectsEnabled) item.View.localRotation = gemRotation;
+                    if (gemGlowEnabled && item.GemGlow != null)
+                        item.GemGlow.transform.localRotation = glowRotation;
+                    if (item.Pink && !item.PinkGemApproached)
+                        item.PinkGemApproached = PassedNearPinkGem(item, previousZ, step, session.Speed);
                     if (previousZ >= 0 && item.View.localPosition.z < 0)
                         crossings.Add(new Crossing(item, Mathf.Clamp01(previousZ / travel)));
                 }
@@ -1041,11 +1092,18 @@ namespace Lotba.Game
                 if (sameLane && item.Kind == ItemKind.Gem && JumpArc.CanCollect(crossingHeight, item.View.localPosition.y))
                 {
                     bool turboWasReady = session.CanActivateTurbo;
-                    session.CollectGem(item.AirborneNote);
+                    session.CollectGem(item.AirborneNote, item.Pink);
                     if (item.View.gameObject.activeInHierarchy)
                         EmitPickupFlash(transform.TransformPoint(new Vector3(item.LaneX, item.View.localPosition.y, 0)), settings.GemFlash);
                     Hide(item);
                     GemFeedback?.Invoke(item.AirborneNote, !turboWasReady && session.CanActivateTurbo);
+                }
+                else if (item.Pink)
+                {
+                    bool nearMiss = item.PinkGemApproached;
+                    bool streakLost = session.MissPinkGem(nearMiss);
+                    Hide(item);
+                    PinkGemMissed?.Invoke(nearMiss, streakLost);
                 }
                 else if (item.Kind == ItemKind.Obstacle
 #if UNITY_EDITOR
@@ -1223,6 +1281,8 @@ namespace Lotba.Game
             if (brakeDustMesh != null) Destroy(brakeDustMesh);
             if (riderImpactMaterial != null) Destroy(riderImpactMaterial);
             foreach (Material fade in riderFadeCopies.Values) Destroy(fade);
+            if (pinkGemMaterials != null)
+                foreach (Material material in pinkGemMaterials) Destroy(material);
         }
         /// <summary>Scale upcoming profiled encounters independently. Existing encounters stay in place.</summary>
         public void SetEncounterIntensity(float gems, float obstacles)
@@ -1245,7 +1305,7 @@ namespace Lotba.Game
                 if (route.HasDecision(nextDecisionGemSection))
                 {
                     for (int i = 1; i <= 6; i++)
-                        Place(ItemKind.Gem, 1, midpoint - lead * (1f - i / 7f) - distance, 1.1f);
+                        Place(ItemKind.Gem, 1, midpoint - lead * (1f - i / 7f) - distance, 1.1f, pink: i == 6);
                 }
                 nextDecisionGemSection++;
                 decisionGemSectionStart += length;
@@ -1301,7 +1361,8 @@ namespace Lotba.Game
                         }
                         for (int thread = 0; thread < threads; thread++)
                             Place(ItemKind.Gem, (lane + thread) % 3,
-                                distance - riderDistance + gem * profile.GemSpacing, 1.1f);
+                                distance - riderDistance + gem * profile.GemSpacing, 1.1f,
+                                pink: thread == 0 && gem == count - 1);
                     }
                     safeLane = lane;
                 }
@@ -1359,7 +1420,7 @@ namespace Lotba.Game
             bool jumping = !gentle && distance > 155f && wave % 4 == 2;
             for (int i = 0; i < 4; i++)
                 Place(ItemKind.Gem, safeLane, z + i * spacing, jumping ? (i == 0 || i == 3 ? 2.05f : 2.7f) : 1.1f,
-                    airborneNote: jumping ? i : -1);
+                    airborneNote: jumping ? i : -1, pink: i == 3);
             ObstacleSet obstacleSet = obstacleOverride != null ? obstacleOverride : roadStream.Route.MapAtDistance(distance).Obstacles;
             float maximumLength = gentle || distance < 220f ? 4.5f : float.PositiveInfinity;
             float obstacleOffset = spacing * 1.5f;
@@ -1640,10 +1701,42 @@ namespace Lotba.Game
         {
             GameObject instance = Instantiate(prefab, transform); instance.SetActive(false);
             if (definition != null) instance.GetComponent<ObstacleView>().Apply(definition);
-            items.Add(new TrackItem { View = instance.transform, Kind = kind, Definition = definition });
+            items.Add(new TrackItem { View = instance.transform, Kind = kind, Definition = definition,
+                GemMesh = kind == ItemKind.Gem ? instance.GetComponent<MeshRenderer>() : null,
+                GemRestScale = instance.transform.localScale });
+        }
+
+        private void ApplyGemAppearance(TrackItem item, bool pink)
+        {
+            if (item.Pink != pink)
+            {
+                if (item.GemMesh != null)
+                {
+                    if (pinkGemMaterials == null)
+                    {
+                        regularGemMaterials = item.GemMesh.sharedMaterials;
+                        pinkGemMaterials = new Material[regularGemMaterials.Length];
+                        Color pinkTint = settings.Brand.Pink;
+                        for (int i = 0; i < pinkGemMaterials.Length; i++)
+                        {
+                            var material = new Material(regularGemMaterials[i]);
+                            Color tint = i == 1 ? Color.Lerp(pinkTint, settings.Brand.Red, .28f)
+                                : i == 2 ? Color.Lerp(pinkTint, settings.Brand.White, .38f) : pinkTint;
+                            material.color = tint;
+                            material.EnableKeyword("_EMISSION");
+                            material.SetColor("_EmissionColor", tint * .65f);
+                            pinkGemMaterials[i] = material;
+                        }
+                    }
+                    item.GemMesh.sharedMaterials = pink ? pinkGemMaterials : regularGemMaterials;
+                }
+                item.View.localScale = item.GemRestScale * (pink ? 1.22f : 1f);
+                item.Pink = pink;
+            }
+            UpdateGemGlow(item);
         }
         private TrackItem Place(ItemKind kind, int lane, float z, float height, ObstacleDefinition definition = null,
-            int airborneNote = -1)
+            int airborneNote = -1, bool pink = false)
         {
             TrackItem item = null;
             foreach (TrackItem candidate in items)
@@ -1662,6 +1755,7 @@ namespace Lotba.Game
             item.ObstacleHit = false;
             item.ImpactTime = null;
             item.AirborneNote = airborneNote;
+            item.PinkGemApproached = false;
             item.LaneX = (lane - 1) * LaneSpacing;
             if (definition != null && definition.RideableRoof)
             {
@@ -1671,6 +1765,7 @@ namespace Lotba.Game
                     definition.Width * .5f, definition.Height, definition.Height, item));
             }
             item.View.SetLocalPositionAndRotation(new Vector3(item.LaneX, kind == ItemKind.Gem ? height : 0, z), Quaternion.identity);
+            if (kind == ItemKind.Gem) ApplyGemAppearance(item, pink);
             bool visible = true;
 #if UNITY_EDITOR
             visible = kind == ItemKind.Gem ? previewGems : previewObstacles;
@@ -1707,6 +1802,26 @@ namespace Lotba.Game
             // Contact starts at z and ends after the full padded collider passes.
             return definition.Length + 2f * padding;
         }
+        private static bool PassedNearPinkGem(TrackItem item, float previousZ, TrackContact step, float speed)
+        {
+            const float lateralMargin = 1.12f;
+            const float verticalMargin = 1f;
+            float enter = 0f, exit = 1f;
+            float approachDistance = Mathf.Min(5f, speed * .12f);
+            if (!TrackContact.Clip(previousZ, item.View.localPosition.z, 0f, approachDistance, ref enter, ref exit) ||
+                !TrackContact.Clip(step.StartX, step.EndX, item.LaneX - lateralMargin,
+                    item.LaneX + lateralMargin, ref enter, ref exit)) return false;
+
+            float gemHeight = item.View.localPosition.y - 1.1f;
+            float split = Mathf.Clamp(step.LandingFraction, enter, exit);
+            return HeightsOverlap(step.HeightAt(enter), step.HeightAt(split)) ||
+                   HeightsOverlap(step.HeightAt(split), step.HeightAt(exit));
+
+            bool HeightsOverlap(float first, float second) =>
+                Mathf.Min(first, second) <= gemHeight + verticalMargin &&
+                Mathf.Max(first, second) >= gemHeight - verticalMargin;
+        }
+
         private static bool TryObstacleContact(TrackItem item, float previousZ, TrackContact step, out float fraction)
         {
             fraction = 0f;

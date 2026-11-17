@@ -19,6 +19,10 @@ namespace Lotba.Game
         [Header("Gameplay sounds")]
         private readonly AudioSource[] airborneSources = new AudioSource[4];
         [SerializeField] private AudioClip gemPickup;
+        [SerializeField] private AudioClip pinkGemMiss;
+        [SerializeField, Range(0f, 1f)] private float pinkGemMissVolume = .65f;
+        [SerializeField] private AudioClip pinkGemStreakLost;
+        [SerializeField, Range(0f, 1f)] private float pinkGemStreakLostVolume = .65f;
         [SerializeField, Range(0f, 1f)] private float gemPickupVolume = .7f;
         [SerializeField, Tooltip("Semitone offsets for the four airborne gems, in track order.")]
         private Vector4 airborneGemSemitones = new Vector4(0f, 4f, 7f, 12f);
@@ -136,6 +140,8 @@ namespace Lotba.Game
         }
         public void PlayBoostStart() => Play(boostStart, boostStartVolume);
         public void PlayBoostReady() => Play(boostReady, boostReadyVolume);
+        public void PlayPinkGemMiss() => Play(pinkGemMiss != null ? pinkGemMiss : gemLoss, pinkGemMissVolume);
+        public void PlayPinkGemStreakLost() => Play(pinkGemStreakLost, pinkGemStreakLostVolume);
         public void PlayUiClick() => PlayInterface(uiClick, uiClickVolume);
         public void EndRun(bool playBrake)
         {

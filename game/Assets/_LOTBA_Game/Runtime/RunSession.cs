@@ -208,16 +208,42 @@ namespace Lotba.Game
             Record("lane_changed");
             return true;
         }
-        public long CollectGem(int airborneNote = -1)
+        public int PinkGemStreak { get; private set; }
+        public int ScoreMultiplier => PinkGemStreak + 1;
+        public int PinkGemsCollected { get; private set; }
+        public int PinkGemsMissed { get; private set; }
+        public int BestPinkGemStreak { get; private set; }
+
+        public int PinkGemNearMisses { get; private set; }
+
+        public bool MissPinkGem(bool nearMiss)
+        {
+            if (State != RunState.Running) return false;
+            PinkGemsMissed++;
+            if (nearMiss) PinkGemNearMisses++;
+            int lostStreak = PinkGemStreak;
+            PinkGemStreak = 0;
+            Record("pink_gem_missed", streakBefore: lostStreak, pinkGemNearMiss: nearMiss);
+            return lostStreak > 0;
+        }
+
+        public long CollectGem(int airborneNote = -1, bool pink = false)
         {
             if (State != RunState.Running) return 0;
             int gemCount = BoostActive ? 2 : 1;
             if (!BoostActive && turboCharge < settings.TurboChargeGems) turboCharge++;
-            long reward = 10L * gemCount;
+            if (pink)
+            {
+                PinkGemsCollected++;
+                PinkGemStreak++;
+                BestPinkGemStreak = Math.Max(BestPinkGemStreak, PinkGemStreak);
+            }
+            long reward = 10L * gemCount * ScoreMultiplier;
             Score += reward; Gems += gemCount; BonusGems += gemCount - 1;
             Record("gem_collected", airborneNote >= 0 ? "air" : "ground", reward,
                 gemDelta: gemCount);
             if (gemCount > 1) Record("boost_bonus_gem");
+            if (pink) Record("pink_gem_collected");
             return reward;
         }
         public long Hit(string obstacleId = null)
@@ -284,6 +310,9 @@ namespace Lotba.Game
                     voluntaryBoosts = VoluntaryBoosts, manualBoosts = ManualBoosts, bonusGems = BonusGems,
                     recoveryAttempts = RecoveryAttempts,
                     gemsLost = GemsLost, gemBalance = GemBalance, boostCollisions = BoostCollisions,
+                    pinkGemsCollected = PinkGemsCollected, pinkGemsMissed = PinkGemsMissed,
+                    pinkGemNearMisses = PinkGemNearMisses,
+                    bestPinkGemStreak = BestPinkGemStreak,
                     gemsSpent = GemsSpent, speedUpgrades = SpeedUpgrades, purchasedSpeedKmh = PurchasedSpeed * 3.6f
                 };
             }
@@ -300,7 +329,8 @@ namespace Lotba.Game
         }
 
         private void Record(string type, string detail = null, long delta = 0,
-            int gemDelta = 0, bool duringBoost = false, int decisionNumber = 0)
+            int gemDelta = 0, bool duringBoost = false, int decisionNumber = 0, int streakBefore = 0,
+            bool pinkGemNearMiss = false)
         {
             if (Telemetry == null) return;
             Telemetry.events.Add(new RunTelemetryEvent
@@ -311,6 +341,8 @@ namespace Lotba.Game
                 lane = Lane, score = Score, scoreDelta = delta,
                 gemsCollected = Gems, gemBalance = GemBalance, gemDelta = gemDelta, duringBoost = duringBoost,
                 decisionNumber = decisionNumber,
+                pinkGemStreak = PinkGemStreak, scoreMultiplier = ScoreMultiplier, pinkGemStreakBefore = streakBefore,
+                pinkGemNearMiss = pinkGemNearMiss,
                 purchasedSpeedKmh = PurchasedSpeed * 3.6f
             });
         }

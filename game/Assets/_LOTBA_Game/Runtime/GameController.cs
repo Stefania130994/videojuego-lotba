@@ -35,6 +35,7 @@ namespace Lotba.Game
             if (IsHighQuality) world.InitializeTurboAura();
             world.ConfigureDepthBend(IsHighQuality);
             world.ConfigurePickupEffects(UseBoostCamera);
+            world.ConfigureGemGlow(IsHighQuality);
             hud.StartRequested += RequestStart; hud.BrakeRequested += RequestBrake;
             hud.PauseRequested += RequestPause; hud.MenuRequested += RequestMenu;
             hud.SoundRequested += ToggleSound; hud.SettingsRequested += OpenSettings;
@@ -45,6 +46,7 @@ namespace Lotba.Game
             hud.TurboRequested += ActivateTurbo;
             hud.UiClicked += audioFeedback.PlayUiClick;
             world.GemFeedback += OnGem;
+            world.PinkGemMissed += OnPinkGemMissed;
             world.ImpactFeedback += OnImpact;
             world.LetterCollected += OnLetterCollected;
         }
@@ -186,6 +188,15 @@ namespace Lotba.Game
             if (turboJustReady) audioFeedback.PlayBoostReady();
             devices.Feedback(false);
         }
+        private void OnPinkGemMissed(bool nearMiss, bool streakLost)
+        {
+            if (nearMiss)
+            {
+                hud.ShowPinkGemMiss();
+                audioFeedback.PlayPinkGemMiss();
+            }
+            if (streakLost) audioFeedback.PlayPinkGemStreakLost();
+        }
         private void OnImpact(bool duringBoost, int gemsLost)
         {
             audioFeedback.PlayCollision(duringBoost);
@@ -258,6 +269,7 @@ namespace Lotba.Game
             if (session != null)
             {
                 world.ConfigurePickupEffects(UseBoostCamera);
+                world.ConfigureGemGlow(IsHighQuality);
                 if (IsHighQuality) world.InitializeTurboAura();
                 else world.ClearTurboAura();
             }
@@ -289,6 +301,7 @@ namespace Lotba.Game
             hud.TurboRequested -= ActivateTurbo;
             hud.UiClicked -= audioFeedback.PlayUiClick;
             world.GemFeedback -= OnGem;
+            world.PinkGemMissed -= OnPinkGemMissed;
             world.ImpactFeedback -= OnImpact;
             world.LetterCollected -= OnLetterCollected;
         }

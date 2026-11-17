@@ -41,6 +41,11 @@ namespace Lotba.Game
         private float scorePulseUntil;
         private int previousGemBalance;
         private long previousScore;
+        [SerializeField] private TMPro.TMP_Text pinkGemMultiplier, pinkGemMiss;
+        private float pinkGemMissUntil;
+        private int displayedPinkGemMultiplier;
+        private Transform pinkGemBadge;
+        private Vector3 pinkGemBadgeRestScale;
         private float previousHudWidth;
         [SerializeField] private RectTransform speedOffer;
         [SerializeField] private GameObject modalShade, paceAlmostBadge, paceShortfallBadge;
@@ -80,6 +85,11 @@ namespace Lotba.Game
             milestoneRiderMin = milestoneRider.anchorMin;
             milestoneRiderMax = milestoneRider.anchorMax;
             scoreRestScale = score.rectTransform.localScale;
+            if (pinkGemMultiplier != null)
+            {
+                pinkGemBadge = pinkGemMultiplier.transform.parent;
+                pinkGemBadgeRestScale = pinkGemBadge.localScale;
+            }
             paceCardGraphics = increaseSpeedButton.GetComponentsInChildren<UnityEngine.UI.Graphic>(true);
             paceCardColors = Array.ConvertAll(paceCardGraphics, graphic => graphic.color);
             availablePaceIcon = paceCardIcon.sprite;
@@ -208,6 +218,7 @@ namespace Lotba.Game
             ClearRankingOffer();
             endingBackground.gameObject.SetActive(false);
             scorePulseUntil = 0f;
+            pinkGemMissUntil = 0f;
             previousGemBalance = -1;
             previousScore = -1;
             previousHudWidth = -1f;
@@ -223,6 +234,25 @@ namespace Lotba.Game
             float textWidth = label.GetPreferredValues(label.text, Mathf.Infinity, Mathf.Infinity).x;
             panel.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal,
                 Mathf.Min(textWidth + padding, maxWidth));
+        }
+
+        public void ShowPinkGemMiss() => pinkGemMissUntil = Time.unscaledTime + 1.1f;
+
+        private void RenderPinkGemStreak(RunSession session, bool running)
+        {
+            bool visible = running && !session.OfferPending;
+            if (pinkGemBadge != null)
+            {
+                int multiplier = session.ScoreMultiplier;
+                pinkGemBadge.gameObject.SetActive(visible && multiplier > 1);
+                if (displayedPinkGemMultiplier != multiplier)
+                {
+                    displayedPinkGemMultiplier = multiplier;
+                    pinkGemMultiplier.text = $"×{multiplier}";
+                }
+            }
+            if (pinkGemMiss != null)
+                pinkGemMiss.transform.parent.gameObject.SetActive(running && Time.unscaledTime < pinkGemMissUntil);
         }
 
 
@@ -293,6 +323,7 @@ namespace Lotba.Game
 
             if (boostSpeedLines != null) boostSpeedLines.Render(settings, session, showBoostLines);
             RenderWordBanner(running);
+            RenderPinkGemStreak(session, running);
             pause.interactable = !SettingsOpen && !session.OfferPending;
             if (speedOffer != null)
             {
@@ -357,7 +388,9 @@ namespace Lotba.Game
                 ResizeCounter(score, hudWidth * .40f);
             }
             float scorePulse = running ? Mathf.Clamp01((scorePulseUntil - Time.unscaledTime) / ScorePulseDuration) : 0f;
-            score.rectTransform.localScale = scoreRestScale * (1f + Mathf.Sin(scorePulse * Mathf.PI) * .18f);
+            float scoreScale = 1f + Mathf.Sin(scorePulse * Mathf.PI) * .18f;
+            score.rectTransform.localScale = scoreRestScale * scoreScale;
+            if (pinkGemBadge != null) pinkGemBadge.localScale = pinkGemBadgeRestScale * scoreScale;
             gauge.SetSpeed(session.Speed, settings.InitialSpeed, session.PurchasedSpeed, session.Elapsed, settings.Brand,
                 running && !session.OfferPending);
             if (SettingsOpen)
