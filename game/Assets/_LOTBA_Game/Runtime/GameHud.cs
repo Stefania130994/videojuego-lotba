@@ -6,7 +6,7 @@ namespace Lotba.Game
     /// <summary>Scene UI bindings. Configuration exposes only implemented, available capabilities.</summary>
     public sealed partial class GameHud : MonoBehaviour
     {
-        [SerializeField] private TMPro.TMP_Text gameTitle, developmentLabel, identityFooter, buildVersion;
+        [SerializeField] private TMPro.TMP_Text developmentLabel, identityFooter, buildVersion;
         [SerializeField] private GameObject readyPanel, pausePanel, resultPanel, raceHud, controls, settingsPanel;
         [SerializeField] private UnityEngine.UI.Button start, retry, menu, pause, resume, brake, pauseMenu, exit;
         [SerializeField] private UnityEngine.UI.Button[] configurationButtons;
@@ -192,17 +192,6 @@ namespace Lotba.Game
         }
         public void ApplyIdentity()
         {
-            if (gameTitle != null)
-            {
-                string title = GameIdentity.Title.ToUpperInvariant();
-                int split = title.IndexOf(' ');
-                gameTitle.text = split > 0
-                    ? title.Substring(0, split) + "\n" + title.Substring(split + 1)
-                    : title;
-                gameTitle.enableAutoSizing = true;
-                gameTitle.fontSizeMin = 32;
-                gameTitle.fontSizeMax = 82;
-            }
             if (developmentLabel != null)
             {
                 developmentLabel.text = GameIdentity.DevelopmentLabel;
