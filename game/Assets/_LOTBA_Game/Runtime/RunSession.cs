@@ -81,7 +81,13 @@ namespace Lotba.Game
             if (State != RunState.Ready) return;
             State = RunState.Running;
             if (telemetryRoute == null) return;
-            Telemetry = new RunTelemetry { route = telemetryRoute.name, seed = settings.Seed, routeDistanceMetres = finishDistance };
+            Telemetry = new RunTelemetry
+            {
+                gameVersion = UnityEngine.Application.version,
+                route = telemetryRoute.name,
+                seed = settings.Seed,
+                routeDistanceMetres = finishDistance
+            };
             ScheduleNextSpeedOffer();
             Record("run_started");
         }

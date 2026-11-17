@@ -137,21 +137,24 @@ namespace Lotba.Game
         public float PatternVisibilityMargin => Mathf.Max(0f, patternVisibilityMargin);
         public int Seed => seed;
 
+        [Header("Identidad visual LOTBA")]
+        [SerializeField] private LotbaBrandSettings brand = new LotbaBrandSettings();
+        public LotbaBrandSettings Brand => brand;
+
         [Header("Cierre de partida")]
-        [SerializeField] private string endingHeading = "HABLAR ES GANAR";
-        [SerializeField, TextArea(3, 6)] private string endingReflection =
-            "En las apuestas, las ganas de ganar o recuperar lo perdido pueden empujarte a seguir. También podés frenar y hablarlo.";
         [SerializeField, Min(0f), Tooltip("Segundos de fundido a negro después del derrape.")]
         private float endingBrakeFadeSeconds = 1.45f;
+        [SerializeField, Min(0f)] private float endingArtworkFadeSeconds = .45f;
         [SerializeField, Min(1f)] private float endingCharactersPerSecond = 25f;
-        [SerializeField, Min(0f), Tooltip("Segundos de lectura después del último carácter.")]
+        [SerializeField, Min(0f), Tooltip("Segundos de lectura después del último carácter y antes de mostrar Continuar.")]
         private float endingReadingHoldSeconds = 5f;
+        [SerializeField, Min(0f)] private float endingContinueFadeSeconds = .25f;
         [SerializeField, Min(0f)] private float endingResultsFadeSeconds = .75f;
-        public string EndingHeading => endingHeading;
-        public string EndingReflection => endingReflection;
         public float EndingBrakeFadeSeconds => Mathf.Max(0f, endingBrakeFadeSeconds);
+        public float EndingArtworkFadeSeconds => Mathf.Max(0f, endingArtworkFadeSeconds);
         public float EndingCharactersPerSecond => Mathf.Max(1f, endingCharactersPerSecond);
         public float EndingReadingHoldSeconds => Mathf.Max(0f, endingReadingHoldSeconds);
+        public float EndingContinueFadeSeconds => Mathf.Max(0f, endingContinueFadeSeconds);
         public float EndingResultsFadeSeconds => Mathf.Max(0f, endingResultsFadeSeconds);
 
         [Header("Debug")]
@@ -159,6 +162,34 @@ namespace Lotba.Game
         private bool logObstacleCollisions;
         public bool LogObstacleCollisions => logObstacleCollisions;
     }
+
+    [System.Serializable]
+    public sealed class LotbaBrandSettings
+    {
+        [SerializeField, Tooltip("PPNeueCorp NarrowUltrabold para titulares de impacto.")]
+        private TMPro.TMP_FontAsset impactFont;
+        [SerializeField, Tooltip("Archivo Regular para texto de lectura, descripciones e información.")]
+        private TMPro.TMP_FontAsset bodyFont;
+        [SerializeField, Tooltip("Archivo Bold para subtítulos, énfasis y botones.")]
+        private TMPro.TMP_FontAsset bodyBoldFont;
+        [SerializeField] private Color black = new Color32(20, 20, 20, 255);
+        [SerializeField] private Color red = new Color32(252, 61, 36, 255);
+        [SerializeField] private Color yellow = new Color32(255, 212, 0, 255);
+        [SerializeField] private Color green = new Color32(142, 239, 41, 255);
+        [SerializeField] private Color pink = new Color32(255, 115, 205, 255);
+        [SerializeField] private Color white = new Color32(254, 255, 243, 255);
+
+        public TMPro.TMP_FontAsset ImpactFont => impactFont;
+        public TMPro.TMP_FontAsset BodyFont => bodyFont;
+        public TMPro.TMP_FontAsset BodyBoldFont => bodyBoldFont;
+        public Color Black => black;
+        public Color Red => red;
+        public Color Yellow => yellow;
+        public Color Green => green;
+        public Color Pink => pink;
+        public Color White => white;
+    }
+
     [System.Serializable]
     public sealed class PickupFlashSettings
     {
