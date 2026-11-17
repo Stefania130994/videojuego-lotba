@@ -17,9 +17,12 @@ namespace Lotba.Game
         private float riderDistance;
         internal const float BrakeSlideSeconds = .50f;
         private float brakeSlideStarted = float.NegativeInfinity;
-        private Transform brakeVisual, brakeFrontWheel, brakeRearWheel;
-        private BrakePart brakeBars, brakeFork, brakeHead, brakeTorso, brakeInnerLeg, brakeOuterLeg;
-        private Quaternion brakeFrontSpin;
+        private Transform riderVisual, steeringPivot, frontWheel, rearWheel;
+        private RiderPart hips, torso, head;
+        private RiderLimb[] legs, arms;
+        private Quaternion brakeStartRotation, brakeStartSteering;
+        private Vector3 brakeStartScale;
+        private float brakeStartHeight, brakeTravel;
         private Vector3 brakeCameraPosition;
         private float brakeCameraFov, brakeInitialSpeed, nextBrakeParticle;
         private bool brakeCameraEffects, brakeGroundEffects;
@@ -31,13 +34,13 @@ namespace Lotba.Game
         private float brakeMarkStarted = float.NegativeInfinity;
         private static readonly Color BrakeMarkColor = new Color32(40, 42, 45, 175);
 
-        private readonly struct BrakePart
+        private readonly struct RiderPart
         {
             public readonly Transform View;
             public readonly Vector3 Position;
             public readonly Quaternion Rotation;
 
-            public BrakePart(Transform view)
+            public RiderPart(Transform view)
             {
                 View = view;
                 Position = view == null ? Vector3.zero : view.localPosition;
@@ -50,6 +53,59 @@ namespace Lotba.Game
             }
 
             public void Reset() => Apply(Vector3.zero, Quaternion.identity);
+        }
+
+        private readonly struct RiderLimb
+        {
+            private readonly RiderPart upper, lower, end;
+            private readonly Vector3 upperScale, lowerScale;
+            public readonly Vector3 JointRoot, Endpoint;
+
+            public RiderLimb(Transform upper, Transform lower, Transform end, Vector3 root)
+            {
+                this.upper = new RiderPart(upper);
+                this.lower = new RiderPart(lower);
+                this.end = new RiderPart(end);
+                upperScale = upper != null ? upper.localScale : Vector3.one;
+                lowerScale = lower != null ? lower.localScale : Vector3.one;
+                JointRoot = root;
+                Endpoint = this.end.Position;
+            }
+
+            public void Pose(Vector3 root, Vector3 endpoint, Vector3 bend, Quaternion endRotation)
+            {
+                if (upper.View == null || lower.View == null || end.View == null) return;
+                Vector3 reach = endpoint - root;
+                float distance = Mathf.Max(.001f, reach.magnitude);
+                Vector3 direction = reach / distance;
+                float extension = Mathf.Max(1f, distance / (2f * (upperScale.y + lowerScale.y) - .005f));
+                float firstLength = 2f * upperScale.y * extension;
+                float secondLength = 2f * lowerScale.y * extension;
+                float along = Mathf.Clamp((distance * distance + firstLength * firstLength -
+                    secondLength * secondLength) / (2f * distance), 0f, distance);
+                float outward = Mathf.Sqrt(Mathf.Max(0f, firstLength * firstLength - along * along));
+                Vector3 joint = root + direction * along + Vector3.ProjectOnPlane(bend, direction).normalized * outward;
+                PoseSegment(upper.View, upperScale, root, joint);
+                PoseSegment(lower.View, lowerScale, joint, endpoint);
+                end.Apply(endpoint - Endpoint, endRotation);
+            }
+
+            private static void PoseSegment(Transform mesh, Vector3 restScale, Vector3 start, Vector3 end)
+            {
+                Vector3 segment = end - start;
+                mesh.SetLocalPositionAndRotation((start + end) * .5f, Quaternion.FromToRotation(Vector3.up, segment));
+                restScale.y = segment.magnitude * .25f + .015f;
+                mesh.localScale = restScale;
+            }
+
+            public void Reset()
+            {
+                upper.Reset();
+                lower.Reset();
+                end.Reset();
+                if (upper.View != null) upper.View.localScale = upperScale;
+                if (lower.View != null) lower.View.localScale = lowerScale;
+            }
         }
         private float depthBendStart, depthBendStrength;
         private bool refreshDepthBend;
@@ -141,7 +197,15 @@ namespace Lotba.Game
         private int safeLane = 1;
         private int previousVehicleLane = -1;
         private int wave;
-        private float pedalAngle;
+        private const float LanePoseSeconds = .20f;
+        private const float LandingPoseSeconds = .15f;
+        private const float TakeoffPreloadSeconds = .055f;
+        private float pedalPhase, wheelSpin, lanePoseAge, lanePoseDirection;
+        private float sprintPose, sprintFrom, sprintAge;
+        private float airPose, landingAge, takeoffAge;
+        private float riderSway, riderBank, riderBrace, riderTakeoff, riderLanding;
+        private bool sprinting, wasAirborne;
+        private Vector2 tyreRadii;
         private const float CourseRampStart = 72f;
         private const float CourseRampLength = 12f;
         private const float CourseBusStart = CourseRampStart + CourseRampLength;
@@ -630,7 +694,7 @@ namespace Lotba.Game
             roadStream.Initialize(settings.DepthBendShader);
             wheelOrigins = new Quaternion[wheels.Length];
             for (int i = 0; i < wheels.Length; i++) wheelOrigins[i] = wheels[i].localRotation;
-            PrepareBrakeVisuals();
+            PrepareRiderVisuals();
             for (int i = 0; i < 72; i++) AddToPool(gemPrefab, ItemKind.Gem);
             foreach (var section in roadStream.Route.Sections) WarmSet(section.Map.Obstacles);
         }
@@ -640,9 +704,12 @@ namespace Lotba.Game
             brakeMarkStarted = float.NegativeInfinity;
             if (brakeMark != null) brakeMark.positionCount = 0;
             if (brakeDust != null) brakeDust.Stop(false, ParticleSystemStopBehavior.StopEmittingAndClear);
-            brakeVisual.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
-            brakeBars.Reset(); brakeFork.Reset(); brakeHead.Reset(); brakeTorso.Reset();
-            brakeInnerLeg.Reset(); brakeOuterLeg.Reset();
+            riderVisual.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+            riderVisual.localScale = Vector3.one;
+            steeringPivot.localRotation = Quaternion.identity;
+            hips.Reset(); torso.Reset(); head.Reset();
+            foreach (RiderLimb limb in legs) limb.Reset();
+            foreach (RiderLimb limb in arms) limb.Reset();
             turboAura?.Clear();
             ClearGemScatter();
             riderDistance = 0f;
@@ -662,12 +729,17 @@ namespace Lotba.Game
             elevatedEncounters.Clear();
             courseHeightOffset = courseJumpBase = courseFallSpeed = nextElevatedDistance = 0f;
             vehiclePatternIndex = 0;
-            laneOrigin = laneTime = pedalAngle = 0;
+            laneOrigin = laneTime = pedalPhase = wheelSpin = lanePoseDirection = 0f;
+            lanePoseAge = LanePoseSeconds;
+            sprintPose = sprintFrom = sprintAge = airPose = 0f;
+            riderSway = riderBank = riderBrace = riderTakeoff = riderLanding = 0f;
+            landingAge = LandingPoseSeconds;
+            takeoffAge = TakeoffPreloadSeconds;
+            sprinting = wasAirborne = false;
             rider.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
             riderShadow.localPosition = new Vector3(0, .025f, 0);
             roadStream.ResetRoad();
             for (int i = 0; i < wheels.Length; i++) wheels[i].localRotation = wheelOrigins[i];
-            foreach (Transform pedal in pedals) pedal.localRotation = Quaternion.identity;
             cameraVelocity = Vector3.zero;
             boostCameraBlend = 0f;
             worldCamera.transform.SetLocalPositionAndRotation(cameraOrigin, cameraRotation);
@@ -739,7 +811,12 @@ namespace Lotba.Game
             }
         }
 
-        public bool TryJump(float time) => courseFallSpeed == 0f && jump.TryStart(time);
+        public bool TryJump(float time)
+        {
+            if (courseFallSpeed != 0f || !jump.TryStart(time)) return false;
+            takeoffAge = 0f;
+            return true;
+        }
         public void Advance(RunSession session, float dt, bool reducedMotion, bool boostCamera = false, bool boostAura = false)
         {
             AdvanceGemScatter(dt);
@@ -750,24 +827,23 @@ namespace Lotba.Game
             if (session.Lane != visualLane)
             {
                 laneOrigin = oldX; laneTime = 0; visualLane = session.Lane;
+                lanePoseAge = 0f;
+                lanePoseDirection = Mathf.Sign((visualLane - 1) * LaneSpacing - oldX);
             }
             laneTime += dt;
             float targetX = (visualLane - 1) * LaneSpacing;
             float blend = Mathf.Clamp01(laneTime / settings.LaneChangeTime);
             // Smoothstep has a short fixed duration and can be redirected during a transition.
             float x = Mathf.Lerp(laneOrigin, targetX, blend * blend * (3 - 2 * blend));
+            float previousHeight = rider.localPosition.y;
             float height = jump.HeightAt(session.Elapsed);
             UpdateVehicleCourse(session.Distance, session.Speed, x, session.Elapsed, dt, ref height);
             rider.localPosition = new Vector3(x, height, 0);
             riderShadow.localPosition = new Vector3(x, .025f, 0);
             riderShadow.localScale = new Vector3(1.1f, 1, 1.8f) * (1 - height * .12f);
-            float lean = reducedMotion ? 0 : Mathf.Clamp((oldX - x) / Mathf.Max(.001f, dt) * .55f, -17, 17);
-            Quaternion pose = Quaternion.Euler(reducedMotion ? 0 : -height * 4, 0, lean);
-            rider.localRotation = Quaternion.Slerp(rider.localRotation, pose, 18 * dt);
             float travel = session.Speed * dt;
-            foreach (Transform wheel in wheels) wheel.Rotate(Vector3.right, travel * Mathf.Rad2Deg / .45f, Space.Self);
-            pedalAngle += travel * 35;
-            for (int i = 0; i < pedals.Length; i++) pedals[i].localRotation = Quaternion.Euler(Mathf.Sin((pedalAngle + i * 180) * Mathf.Deg2Rad) * 22, 0, 0);
+            AnimateRider(session.BoostActive, height - courseHeightOffset > 0f || courseFallSpeed > 0f,
+                (height - previousHeight) / dt, travel, reducedMotion, dt);
             roadStream.Advance(session.Distance);
             crossings.Clear();
             foreach (TrackItem item in items)
@@ -1495,11 +1571,15 @@ namespace Lotba.Game
 
             brakeSlideStarted = Time.unscaledTime;
             brakeInitialSpeed = Mathf.Max(0f, speedBeforeBrake);
-            brakeFrontSpin = brakeFrontWheel != null ? brakeFrontWheel.localRotation : Quaternion.identity;
+            brakeStartRotation = riderVisual.localRotation;
+            brakeStartSteering = steeringPivot.localRotation;
+            brakeStartScale = riderVisual.localScale;
+            brakeStartHeight = riderVisual.localPosition.y;
+            brakeTravel = 0f;
             brakeCameraPosition = worldCamera.transform.localPosition;
             brakeCameraFov = referenceFieldOfView;
             brakeCameraEffects = cameraAndParticles;
-            brakeGroundEffects = cameraAndParticles && brakeRearWheel != null && brakeDust != null &&
+            brakeGroundEffects = cameraAndParticles && rearWheel != null && brakeDust != null &&
                 rider.localPosition.y <= .06f;
             nextBrakeParticle = 0f;
             brakeMarkPoints = 0;
@@ -1511,54 +1591,220 @@ namespace Lotba.Game
             if (brakeInitialSpeed > 0f) AddBrakeContact(0f, brakeInitialSpeed);
         }
 
-        private void PrepareBrakeVisuals()
+        private void PrepareRiderVisuals()
         {
-            brakeVisual = new GameObject("Visual del ciclista").transform;
-            brakeVisual.SetParent(rider, false);
+            riderVisual = new GameObject("Visual del ciclista").transform;
+            riderVisual.SetParent(rider, false);
             for (int i = rider.childCount - 2; i >= 0; i--)
             {
                 Transform part = rider.GetChild(i);
                 if (part.GetComponentInChildren<Collider>(true) == null)
-                    part.SetParent(brakeVisual, false);
+                    part.SetParent(riderVisual, false);
             }
 
-            brakeBars = new BrakePart(brakeVisual.Find("Handlebars"));
-            brakeFork = new BrakePart(brakeVisual.Find("Fork"));
-            brakeHead = GroupBrakeMesh("Head", "Cabeza de frenada");
-            brakeTorso = GroupBrakeMesh("Hoodie", "Torso de frenada");
-            for (int i = brakeVisual.childCount - 1; i >= 0; i--)
-            {
-                Transform part = brakeVisual.GetChild(i);
-                if (brakeHead.View != null && part.name.StartsWith("Helmet", System.StringComparison.Ordinal))
-                    part.SetParent(brakeHead.View, true);
-                if (brakeTorso.View != null && part.name == "Hood")
-                    part.SetParent(brakeTorso.View, true);
-            }
+            var bars = riderVisual.Find("Handlebars");
+            var fork = riderVisual.Find("Fork");
+            steeringPivot = CreateVisualPivot("Dirección", riderVisual, bars != null ? bars.localPosition : Vector3.zero);
+            if (bars != null) bars.SetParent(steeringPivot, true);
+            if (fork != null) fork.SetParent(steeringPivot, true);
             foreach (Transform wheel in wheels)
             {
-                if (brakeFrontWheel == null || wheel.localPosition.z > brakeFrontWheel.localPosition.z)
-                    brakeFrontWheel = wheel;
-                if (brakeRearWheel == null || wheel.localPosition.z < brakeRearWheel.localPosition.z)
-                    brakeRearWheel = wheel;
+                if (wheel.parent != riderVisual) continue;
+                if (frontWheel == null || wheel.localPosition.z > frontWheel.localPosition.z) frontWheel = wheel;
+                if (rearWheel == null || wheel.localPosition.z < rearWheel.localPosition.z) rearWheel = wheel;
             }
-            foreach (Transform leg in pedals)
+            if (frontWheel != null && frontWheel != rearWheel) frontWheel.SetParent(steeringPivot, true);
+            if (rearWheel != null && rearWheel.Find("Tyre") is Transform tyre &&
+                tyre.TryGetComponent(out MeshFilter mesh) && mesh.sharedMesh != null)
             {
-                if (leg.localPosition.x >= 0f) brakeInnerLeg = new BrakePart(leg);
-                else brakeOuterLeg = new BrakePart(leg);
+                Vector3 extents = Vector3.Scale(mesh.sharedMesh.bounds.extents, tyre.localScale);
+                tyreRadii = new Vector2(extents.x, extents.y - extents.x);
             }
 
+            Transform seat = riderVisual.Find("Seat");
+            hips = new RiderPart(CreateVisualPivot("Cadera", riderVisual, seat != null ? seat.localPosition : Vector3.zero));
+            torso = new RiderPart(CreateVisualPivot("Torso", hips.View, new Vector3(0f, .10f, .04f)));
+            Transform headMesh = riderVisual.Find("Head");
+            head = new RiderPart(CreateVisualPivot("Cabeza", torso.View, headMesh != null
+                ? torso.View.InverseTransformPoint(headMesh.position) : Vector3.zero));
+            var upperArms = new Transform[2];
+            var forearms = new Transform[2];
+            var hands = new Transform[2];
+            for (int i = riderVisual.childCount - 1; i >= 0; i--)
+            {
+                Transform part = riderVisual.GetChild(i);
+                int side = part.localPosition.x < 0f ? 0 : 1;
+                if (part == headMesh || part.name.StartsWith("Helmet", System.StringComparison.Ordinal))
+                    part.SetParent(head.View, true);
+                else if (part.name == "Hoodie" || part.name == "Hood")
+                    part.SetParent(torso.View, true);
+                else if (part.name == "Upper arm") upperArms[side] = part;
+                else if (part.name == "Forearm") forearms[side] = part;
+                else if (part.name == "Hand") hands[side] = part;
+            }
+            arms = new RiderLimb[2];
+            for (int i = 0; i < arms.Length; i++)
+            {
+                Transform upper = upperArms[i];
+                if (upper == null) continue;
+                Vector3 shoulder = upper.localPosition - upper.localRotation * (Vector3.up * upper.localScale.y);
+                arms[i] = new RiderLimb(upper, forearms[i], hands[i], shoulder);
+            }
+            legs = new RiderLimb[pedals.Length];
+            for (int i = 0; i < legs.Length; i++)
+            {
+                Transform leg = pedals[i];
+                if (leg.parent != riderVisual) continue;
+                Transform thigh = leg.Find("Thigh"), shin = leg.Find("Shin"), shoe = leg.Find("Shoe");
+                Vector3 hip = leg.localPosition;
+                if (thigh != null) thigh.SetParent(riderVisual, true);
+                if (shin != null) shin.SetParent(riderVisual, true);
+                if (shoe != null) shoe.SetParent(riderVisual, true);
+                legs[i] = new RiderLimb(thigh, shin, shoe, hip);
+            }
             CreateBrakeGroundEffects();
         }
 
-        private BrakePart GroupBrakeMesh(string meshName, string pivotName)
+        private static Transform CreateVisualPivot(string name, Transform parent, Vector3 position)
         {
-            Transform mesh = brakeVisual.Find(meshName);
-            if (mesh == null) return default;
-            var pivot = new GameObject(pivotName).transform;
-            pivot.SetParent(brakeVisual, false);
-            pivot.localPosition = mesh.localPosition;
-            mesh.SetParent(pivot, true);
-            return new BrakePart(pivot);
+            var pivot = new GameObject(name).transform;
+            pivot.SetParent(parent, false);
+            pivot.localPosition = position;
+            return pivot;
+        }
+
+        private void AnimateRider(bool turbo, bool airborne, float verticalSpeed, float travel, bool reducedMotion, float dt)
+        {
+            if (turbo != sprinting)
+            {
+                sprinting = turbo;
+                sprintFrom = sprintPose;
+                sprintAge = 0f;
+            }
+            sprintAge += dt;
+            float sprintProgress = Mathf.Clamp01(sprintAge / (sprinting ? .15f : .30f));
+            sprintPose = Mathf.SmoothStep(sprintFrom, sprinting ? 1f : 0f, sprintProgress);
+            if (!sprinting && sprintProgress > .6f && sprintProgress < 1f)
+                sprintPose -= .065f * Mathf.Max(0f, sprintFrom) * Mathf.Sin(Mathf.PI * (sprintProgress - .6f) / .4f);
+
+            float sprint = reducedMotion ? 0f : sprintPose;
+            pedalPhase = Mathf.Repeat(pedalPhase + travel * 35f * Mathf.Deg2Rad *
+                (1f + .4f * Mathf.Clamp01(sprint)), 2f * Mathf.PI);
+            float phase = pedalPhase;
+            AnimateWheels(travel, true);
+
+            lanePoseAge += dt;
+            float lane = Mathf.Clamp01(lanePoseAge / LanePoseSeconds);
+            float bank = lane < .72f
+                ? Mathf.Sin(Mathf.PI * Mathf.SmoothStep(0f, 1f, lane / .72f))
+                : -.12f * Mathf.Sin(Mathf.PI * (lane - .72f) / .28f);
+            bank *= reducedMotion ? 0f : lanePoseDirection;
+            float yaw = reducedMotion ? 0f : 17f * lanePoseDirection *
+                Mathf.SmoothStep(0f, 1f, lane / .30f) *
+                (1f - Mathf.SmoothStep(0f, 1f, (lane - .30f) / .60f));
+
+            if (wasAirborne && !airborne) landingAge = 0f;
+            wasAirborne = airborne;
+            landingAge = airborne ? LandingPoseSeconds : Mathf.Min(LandingPoseSeconds, landingAge + dt);
+            float landing = reducedMotion ? 0f : Mathf.SmoothStep(0f, 1f, landingAge / .035f) *
+                (1f - Mathf.SmoothStep(0f, 1f, (landingAge - .035f) / .115f));
+            float damping = 1f - Mathf.Exp(-28f * dt);
+            airPose = Mathf.Lerp(airPose, airborne && !reducedMotion ? 1f : 0f, damping);
+            float rise = airborne ? Mathf.Clamp01(verticalSpeed / JumpArc.EndDescentSpeed) : 0f;
+            float fall = airborne ? Mathf.Clamp01(-verticalSpeed / JumpArc.EndDescentSpeed) : 0f;
+            takeoffAge = Mathf.Min(TakeoffPreloadSeconds, takeoffAge + dt);
+            float lift = Mathf.SmoothStep(0f, 1f, takeoffAge / TakeoffPreloadSeconds);
+            float preload = reducedMotion ? 0f : Mathf.Sin(Mathf.PI * lift) * .32f;
+            float pitch = reducedMotion ? 0f : -20f * rise * lift + 13f * fall;
+            float braced = Mathf.Max(airPose, Mathf.Max(landing, Mathf.Clamp01(Mathf.Abs(bank) * 1.4f)));
+            float sway = Mathf.Cos(phase + .36f * Mathf.Clamp01(sprint) * (1f - Mathf.Cos(phase))) * (1f - braced);
+            float roll = -33f * bank + 4f * Mathf.Clamp01(sprint) * sway;
+            Quaternion turning = Quaternion.AngleAxis(yaw, Vector3.up) * Quaternion.AngleAxis(roll, Vector3.forward);
+            Quaternion flight = Quaternion.AngleAxis(pitch, Vector3.right);
+            float frameDamping = lane < 1f ? 1f - Mathf.Exp(-60f * dt) : damping;
+            Quaternion rotation = Quaternion.Slerp(riderVisual.localRotation, turning * flight, frameDamping);
+            Quaternion steering = Quaternion.AngleAxis(22f * bank, Vector3.up);
+            steeringPivot.localRotation = Quaternion.Slerp(steeringPivot.localRotation, steering, frameDamping);
+            float compression = Mathf.Max(landing, preload);
+            Vector3 scale = new Vector3(1f + .06f * compression,
+                1f + .05f * rise * airPose * lift - .12f * compression, 1f);
+            riderVisual.localScale = scale;
+            riderVisual.SetLocalPositionAndRotation(Vector3.up * WheelClearance(rotation, scale), rotation);
+            riderSway = sway;
+            riderBank = bank;
+            riderBrace = braced;
+            riderTakeoff = airPose * rise * lift;
+            riderLanding = compression;
+            PoseRiderBody(phase, sprint, sway, bank, braced, riderTakeoff, compression);
+        }
+
+        private void AnimateWheels(float travel, bool rollRear)
+        {
+            wheelSpin = Mathf.Repeat(wheelSpin + travel * Mathf.Rad2Deg / .45f, 360f);
+            Quaternion spin = Quaternion.AngleAxis(wheelSpin, Vector3.right);
+            for (int i = 0; i < wheels.Length; i++)
+                if (wheels[i] == frontWheel || (rollRear && wheels[i] == rearWheel))
+                    wheels[i].localRotation = wheelOrigins[i] * spin;
+        }
+
+        private float WheelClearance(Quaternion rotation, Vector3 scale)
+        {
+            if (frontWheel == null || rearWheel == null || tyreRadii.x <= 0f) return 0f;
+            Vector3 up = Vector3.Scale(Quaternion.Inverse(rotation) * Vector3.up, scale);
+            Quaternion steering = steeringPivot.localRotation;
+            Vector3 front = steeringPivot.localPosition + steering * frontWheel.localPosition;
+            // A tyre is a ring in its local YZ plane, with a round cross-section.
+            float frontBottom = Vector3.Dot(up, front) - TyreRadiusAlong(Quaternion.Inverse(steering) * up);
+            float rearBottom = Vector3.Dot(up, rearWheel.localPosition) - TyreRadiusAlong(up);
+            return -Mathf.Min(frontBottom, rearBottom);
+        }
+
+        private float TyreRadiusAlong(Vector3 direction) =>
+            tyreRadii.x * direction.magnitude + tyreRadii.y * new Vector2(direction.y, direction.z).magnitude;
+
+        private void PoseRiderBody(float phase, float sprint, float sway, float bank, float braced,
+            float takeoff, float landing, float skid = 0f)
+        {
+            float rock = Mathf.Clamp01(sprint);
+            float hipRoll = -5f * sway;
+            Vector3 hipOffset = new Vector3(sway * (.036f + .015f * rock),
+                .20f * sprint + .008f * Mathf.Sin(2f * phase) * rock * (1f - braced) - .09f * landing,
+                .16f * sprint - .115f * takeoff);
+            Quaternion hipRotation = Quaternion.AngleAxis(hipRoll, Vector3.forward);
+            // The hoodie already leans forward by 16 degrees in the prefab.
+            Quaternion torsoRotation = Quaternion.Euler(9f + 15f * sprint + 9f * landing,
+                -4f * sway + 5f * bank, 4f * sway - 7f * bank + 11f * skid);
+            hips.Apply(hipOffset, hipRotation);
+            torso.Apply(Vector3.zero, torsoRotation);
+            Quaternion upperBody = hipRotation * torsoRotation;
+            Quaternion headCounter = Quaternion.Inverse(upperBody) * Quaternion.Inverse(riderVisual.localRotation);
+            head.Apply(Vector3.zero, Quaternion.Slerp(Quaternion.identity, headCounter, .90f));
+
+            Vector3 torsoOrigin = hips.View.localPosition + hipRotation * torso.Position;
+            Quaternion steering = steeringPivot.localRotation;
+            for (int i = 0; i < arms.Length; i++)
+            {
+                RiderLimb arm = arms[i];
+                Vector3 shoulder = torsoOrigin + upperBody * (arm.JointRoot - hips.Position - torso.Position);
+                Vector3 grip = steeringPivot.localPosition + steering * (arm.Endpoint - steeringPivot.localPosition);
+                arm.Pose(shoulder, grip, new Vector3(i == 0 ? -1f : 1f, -.45f, 0f), steering);
+            }
+            Vector3 localUp = Quaternion.Inverse(riderVisual.localRotation) * Vector3.up;
+            float footLevel = Mathf.SmoothStep(0f, 1f, Mathf.Abs(bank)) * localUp.x / Mathf.Max(.5f, localUp.y);
+            foreach (RiderLimb leg in legs)
+            {
+                bool left = leg.JointRoot.x < 0f;
+                float angle = phase + (left ? 0f : Mathf.PI);
+                angle += .36f * rock * (1f - Mathf.Cos(angle));
+                float down = Mathf.Cos(angle);
+                float fore = Mathf.Lerp(Mathf.Sin(angle), left ? -1f : 1f, braced);
+                Vector3 foot = leg.Endpoint + new Vector3(left ? 0f : .09f * skid,
+                    .11f * down * (1f - braced) - (left ? 0f : .08f * skid), .16f * fore);
+                foot.y -= footLevel * foot.x;
+                Vector3 hip = hips.View.localPosition + hipRotation * (leg.JointRoot - hips.Position);
+                Quaternion ankle = Quaternion.AngleAxis(10f * Mathf.Max(0f, -down) * (1f - braced), Vector3.right);
+                leg.Pose(hip, foot, Vector3.forward, ankle);
+            }
         }
 
         private void CreateBrakeGroundEffects()
@@ -1620,7 +1866,7 @@ namespace Lotba.Game
 
         private void AddBrakeContact(float age, float visualSpeed)
         {
-            Vector3 contact = brakeRearWheel.position;
+            Vector3 contact = rearWheel.position;
             contact.y = riderShadow.position.y + .009f;
             brakeMark.positionCount = ++brakeMarkPoints;
             brakeMark.SetPosition(brakeMarkPoints - 1, contact);
@@ -1665,20 +1911,20 @@ namespace Lotba.Game
                 float turn = Mathf.SmoothStep(0f, 1f, progress / .55f);
                 float overshoot = 7f * Mathf.Sin(Mathf.PI * Mathf.Clamp01((progress - .42f) / .58f));
                 float lean = Mathf.SmoothStep(0f, 1f, progress / .48f);
-                Quaternion body = Quaternion.Euler(0f, 65f * turn + overshoot, -24f * lean);
-                Quaternion toLocal = Quaternion.Inverse(rider.localRotation);
-                brakeVisual.SetLocalPositionAndRotation(toLocal * new Vector3(drift, 0f, travel), toLocal *
-                    Quaternion.Slerp(rider.localRotation, body, turn));
-                Quaternion counterSteer = Quaternion.AngleAxis(-40f * turn, Vector3.up);
-                brakeBars.Apply(Vector3.zero, counterSteer);
-                brakeFork.Apply(Vector3.zero, counterSteer);
-                if (brakeFrontWheel != null)
-                    brakeFrontWheel.localRotation = counterSteer * brakeFrontSpin *
-                        Quaternion.AngleAxis(travel * Mathf.Rad2Deg / .45f, Vector3.right);
-                brakeTorso.Apply(Vector3.down * (.10f * lean), Quaternion.AngleAxis(14f * lean, Vector3.forward));
-                brakeHead.Apply(Vector3.down * (.07f * lean), Quaternion.Inverse(body));
-                brakeInnerLeg.Apply(new Vector3(.08f, -.08f, 0f) * lean, Quaternion.Euler(-11f * lean, 0f, 12f * lean));
-                brakeOuterLeg.Apply(Vector3.down * (.045f * lean), Quaternion.Euler(18f * lean, 0f, 0f));
+                Quaternion body = Quaternion.Euler(0f, 65f + overshoot, -24f);
+                Quaternion rotation = Quaternion.Slerp(brakeStartRotation, body, turn);
+                Vector3 scale = Vector3.Lerp(brakeStartScale, Vector3.one, turn);
+                steeringPivot.localRotation = Quaternion.Slerp(brakeStartSteering,
+                    Quaternion.AngleAxis(-40f, Vector3.up), turn);
+                float clearance = Mathf.Lerp(brakeStartHeight, WheelClearance(rotation, scale), turn);
+                riderVisual.localScale = scale;
+                riderVisual.SetLocalPositionAndRotation(new Vector3(drift, clearance, travel), rotation);
+                AnimateWheels(travel - brakeTravel, false);
+                brakeTravel = travel;
+                float riding = 1f - turn;
+                PoseRiderBody(pedalPhase, sprintPose * riding, riderSway * riding, riderBank * riding,
+                    Mathf.Lerp(riderBrace, 1f, turn), riderTakeoff * riding,
+                    Mathf.Lerp(riderLanding, 1f, lean), lean);
                 Vector3 shadow = riderShadow.localPosition;
                 shadow.x = rider.localPosition.x + drift;
                 shadow.z = rider.localPosition.z + travel;
