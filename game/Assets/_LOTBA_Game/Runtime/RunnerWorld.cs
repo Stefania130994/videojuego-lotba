@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Unity.Profiling;
 using UnityEngine;
 
 namespace Lotba.Game
@@ -33,6 +34,8 @@ namespace Lotba.Game
         private int brakeMarkPoints;
         private float brakeMarkStarted = float.NegativeInfinity;
         private static readonly Color BrakeMarkColor = new Color32(40, 42, 45, 175);
+        private static readonly ProfilerMarker PrepareOpeningMarker = new ProfilerMarker("Lotba.Track.PrepareOpening");
+        private static readonly ProfilerMarker PopulateAheadMarker = new ProfilerMarker("Lotba.Track.PopulateAhead");
 
         private readonly struct RiderPart
         {
@@ -928,41 +931,9 @@ namespace Lotba.Game
                 float behind = item.Definition != null ? -item.Definition.Length * .5f - 9 : -8;
                 if (item.Active && item.View.localPosition.z < behind) Hide(item);
             }
-            // Speed changes the reveal horizon while the route positions stay fixed.
-            float lookAhead = Mathf.Max(settings.MinimumPatternLookAhead, session.Speed * settings.PreviewTime);
-            if (settings.PreparePatternsBeyondVisibility)
-                lookAhead = Mathf.Max(lookAhead, roadStream.VisibilityDistance + settings.PatternVisibilityMargin);
-            float spawnHorizon = session.Distance + lookAhead;
             AdvanceLetter(travel, oldX, x, session, dt);
-            SpawnDecisionGems(spawnHorizon, session.Distance);
-            float clearance = Mathf.Max(0f, letterClearance);
-            while (true)
-            {
-                float letterDistance = Mathf.Max(nextLetterDistance, lastPatternEnd + clearance);
-                if (nextLetterDistance <= nextPatternDistance && CanPlaceLetter(letterDistance, clearance))
-                {
-                    if (letterDistance > spawnHorizon) break;
-                    if (TryPlaceLetter(letterDistance, session.Distance))
-                    {
-                        lastPatternEnd = letterDistance;
-                        nextPatternDistance = Mathf.Max(nextPatternDistance, letterDistance + clearance);
-                    }
-                }
-                if (nextPatternDistance > spawnHorizon) break;
-#if UNITY_EDITOR
-                if (SkipVehicleCourse(ref nextPatternDistance)) continue;
-#endif
-
-                if (TrySpawnElevatedEncounter(session.Distance) || TrySpawnProfileEncounter(session.Distance)) continue;
-                if (nextPatternDistance < nextVehicleSafeDistance)
-                {
-                    nextPatternDistance = nextVehicleSafeDistance;
-                    continue;
-                }
-                lastPatternEnd = SpawnPattern(nextPatternDistance, session.Distance);
-                nextPatternDistance = Mathf.Max(nextPatternDistance + settings.PatternSpacingAt(nextPatternDistance),
-                    lastPatternEnd + settings.PatternClearance);
-            }
+            using (PopulateAheadMarker.Auto())
+                PopulateAhead(session.Distance, session.Speed);
             session.ShowSpeedOffer();
             float protection = session.ProtectionProgress;
             const float whiteFlashEnd = .07f;
@@ -980,6 +951,53 @@ namespace Lotba.Game
             float targetFieldOfView = reducedMotion ? 60f : Mathf.Lerp(60f, 68f, intensity) +
                 settings.BoostCameraFieldOfView * boostCameraBlend;
             SetFieldOfView(Mathf.Lerp(referenceFieldOfView, targetFieldOfView, 1f - Mathf.Exp(-10f * dt)));
+        }
+
+        internal void PrepareOpening()
+        {
+            using (PrepareOpeningMarker.Auto())
+            {
+                SetEncounterIntensity(1f, 1f);
+                PopulateAhead(0f, settings.InitialSpeed);
+            }
+        }
+
+        private void PopulateAhead(float distance, float speed)
+        {
+            // Speed changes the reveal horizon while the route positions stay fixed.
+            float lookAhead = Mathf.Max(settings.MinimumPatternLookAhead, speed * settings.PreviewTime);
+            if (settings.PreparePatternsBeyondVisibility)
+                lookAhead = Mathf.Max(lookAhead, roadStream.VisibilityDistance + settings.PatternVisibilityMargin);
+            float spawnHorizon = distance + lookAhead;
+            SpawnDecisionGems(spawnHorizon, distance);
+            float clearance = Mathf.Max(0f, letterClearance);
+            while (true)
+            {
+                float letterDistance = Mathf.Max(nextLetterDistance, lastPatternEnd + clearance);
+                if (nextLetterDistance <= nextPatternDistance && CanPlaceLetter(letterDistance, clearance))
+                {
+                    if (letterDistance > spawnHorizon) break;
+                    if (TryPlaceLetter(letterDistance, distance))
+                    {
+                        lastPatternEnd = letterDistance;
+                        nextPatternDistance = Mathf.Max(nextPatternDistance, letterDistance + clearance);
+                    }
+                }
+                if (nextPatternDistance > spawnHorizon) break;
+#if UNITY_EDITOR
+                if (SkipVehicleCourse(ref nextPatternDistance)) continue;
+#endif
+
+                if (TrySpawnElevatedEncounter(distance) || TrySpawnProfileEncounter(distance)) continue;
+                if (nextPatternDistance < nextVehicleSafeDistance)
+                {
+                    nextPatternDistance = nextVehicleSafeDistance;
+                    continue;
+                }
+                lastPatternEnd = SpawnPattern(nextPatternDistance, distance);
+                nextPatternDistance = Mathf.Max(nextPatternDistance + settings.PatternSpacingAt(nextPatternDistance),
+                    lastPatternEnd + settings.PatternClearance);
+            }
         }
 
         private void FollowRider(float x, bool reducedMotion, float dt)

@@ -1,3 +1,4 @@
+using Unity.Profiling;
 using UnityEngine;
 
 namespace Lotba.Game
@@ -8,6 +9,7 @@ namespace Lotba.Game
     {
         private AudioSource source;
         private AudioSource musicSource, interfaceSource;
+        private static readonly ProfilerMarker StartMusicMarker = new ProfilerMarker("Lotba.Audio.StartMusic");
         [Header("Background music")]
         [SerializeField] private AudioClip backgroundMusic;
         [SerializeField, Range(0f, 1f)] private float backgroundMusicVolume = .35f;
@@ -77,6 +79,7 @@ namespace Lotba.Game
         {
             if (backgroundMusic == null || state == RunState.Finished || state == RunState.Ready)
             {
+                if (musicSource.clip == null) return;
                 musicSource.Stop();
                 musicSource.clip = null;
                 return;
@@ -90,8 +93,11 @@ namespace Lotba.Game
             if (musicSource.clip == backgroundMusic) musicSource.UnPause();
             else
             {
-                musicSource.clip = backgroundMusic;
-                musicSource.Play();
+                using (StartMusicMarker.Auto())
+                {
+                    musicSource.clip = backgroundMusic;
+                    musicSource.Play();
+                }
             }
         }
 

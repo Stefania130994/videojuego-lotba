@@ -49,7 +49,11 @@ namespace Lotba.Game
             world.LetterCollected += OnLetterCollected;
         }
 
-        private void Start() => hud.Render(session, settings, muted, devices, IsHighQuality);
+        private void Start()
+        {
+            world.PrepareOpening();
+            hud.Render(session, settings, muted, devices, IsHighQuality);
+        }
         private void Update()
         {
             Keyboard keyboard = Keyboard.current;
@@ -157,6 +161,7 @@ namespace Lotba.Game
         {
             session = new RunSession(settings, world.Route); world.ResetTrack(); hud.ResetView(); audioFeedback.Stop(); devices.CancelFeedback(); trackingSwipe = false;
             if (start) { session.Start(); }
+            else world.PrepareOpening();
         }
         private void ReadSwipe()
         {
