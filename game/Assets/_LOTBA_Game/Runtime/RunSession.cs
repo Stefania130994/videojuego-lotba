@@ -86,7 +86,8 @@ namespace Lotba.Game
                 gameVersion = UnityEngine.Application.version,
                 route = telemetryRoute.name,
                 seed = settings.Seed,
-                routeDistanceMetres = finishDistance
+                routeDistanceMetres = finishDistance,
+                startedAtUtc = DateTime.UtcNow.ToString("O")
             };
             ScheduleNextSpeedOffer();
             Record("run_started");
@@ -309,6 +310,7 @@ namespace Lotba.Game
             OfferPending = false;
             if (Telemetry != null)
             {
+                Telemetry.finishedAtUtc = DateTime.UtcNow.ToString("O");
                 string reason = ending switch
                 {
                     RunEnding.Brake => "brake",

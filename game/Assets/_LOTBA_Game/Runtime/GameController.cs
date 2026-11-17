@@ -12,7 +12,7 @@ namespace Lotba.Game
         [SerializeField] private AudioManager audioFeedback;
         [SerializeField] private DeviceFeedbackAndInput devices;
         private RunSession session;
-        private bool startRequested, brakeRequested, jumpRequested, pauseRequested, menuRequested;
+        private bool startRequested, brakeRequested, jumpRequested, pauseRequested, menuRequested, sessionReportSaved;
         private bool overloadRequested;
         private int laneRequested;
         private bool? speedChoiceRequested;
@@ -153,6 +153,11 @@ namespace Lotba.Game
                 audioFeedback.EndRun(braked);
                 devices.CancelFeedback();
                 world.EndRun(braked, speedBeforeBrake, UseBoostCamera);
+                if (!sessionReportSaved)
+                {
+                    sessionReportSaved = true;
+                    SessionReportWriter.Save(session.Telemetry);
+                }
             }
             devices.UpdateBoostFeedback(session.State == RunState.Running
                 ? session.BoostProgress * RunSession.BoostSeconds : 0f);
@@ -163,6 +168,7 @@ namespace Lotba.Game
         }
         private void ResetRun(bool start)
         {
+            sessionReportSaved = false;
             session = new RunSession(settings, world.Route); world.ResetTrack(); hud.ResetView(); audioFeedback.Stop(); devices.CancelFeedback(); trackingSwipe = false;
             if (start) { session.Start(); }
             else world.PrepareOpening();
