@@ -52,10 +52,16 @@ namespace Lotba.Game
         [SerializeField] private AudioClip wordCompleted;
         [SerializeField, Range(0f, 1f)] private float wordCompletedVolume = .7f;
         public bool Muted { get; private set; }
+        public float MusicLevel { get; private set; } = 1f;
+        public float EffectsLevel { get; private set; } = 1f;
+        private float effectsSourceVolume;
+        private bool volumePreferencesDirty;
+        private float saveVolumeAt;
 
         private void Awake()
         {
             source = GetComponent<AudioSource>();
+            effectsSourceVolume = source.volume;
             source.playOnAwake = false;
             musicSource = CreateAuxiliarySource();
             musicSource.loop = true;
@@ -68,7 +74,60 @@ namespace Lotba.Game
                 voice.volume = source.volume;
                 airborneSources[i] = voice;
             }
+            MusicLevel = Mathf.Clamp01(PlayerPrefs.GetFloat("Lotba.CityRush.MusicVolume", 1f));
+            EffectsLevel = Mathf.Clamp01(PlayerPrefs.GetFloat("Lotba.CityRush.EffectsVolume", 1f));
+            ApplyLevels();
         }
+
+        public void SetMusicLevel(float value)
+        {
+            MusicLevel = Mathf.Clamp01(value);
+            PlayerPrefs.SetFloat("Lotba.CityRush.MusicVolume", MusicLevel);
+            ScheduleVolumeSave();
+            ApplyLevels();
+        }
+
+        public void SetEffectsLevel(float value)
+        {
+            EffectsLevel = Mathf.Clamp01(value);
+            PlayerPrefs.SetFloat("Lotba.CityRush.EffectsVolume", EffectsLevel);
+            ScheduleVolumeSave();
+            ApplyLevels();
+        }
+
+        private void ApplyLevels()
+        {
+            source.volume = effectsSourceVolume * EffectsLevel;
+            if (musicSource != null) musicSource.volume = backgroundMusicVolume * MusicLevel;
+            if (interfaceSource != null) interfaceSource.volume = EffectsLevel;
+            foreach (var voice in airborneSources)
+                if (voice != null) voice.volume = effectsSourceVolume * EffectsLevel;
+        }
+
+        private void ScheduleVolumeSave()
+        {
+            volumePreferencesDirty = true;
+            saveVolumeAt = Time.unscaledTime + .5f;
+        }
+
+        private void Update()
+        {
+            if (volumePreferencesDirty && Time.unscaledTime >= saveVolumeAt) SaveVolumePreferences();
+        }
+
+        private void SaveVolumePreferences()
+        {
+            if (!volumePreferencesDirty) return;
+            PlayerPrefs.Save();
+            volumePreferencesDirty = false;
+        }
+
+        private void OnApplicationPause(bool paused)
+        {
+            if (paused) SaveVolumePreferences();
+        }
+
+        private void OnDisable() => SaveVolumePreferences();
 
         private AudioSource CreateAuxiliarySource()
         {
@@ -93,7 +152,7 @@ namespace Lotba.Game
                 musicSource.Pause();
                 return;
             }
-            musicSource.volume = backgroundMusicVolume;
+            musicSource.volume = backgroundMusicVolume * MusicLevel;
             if (musicSource.clip == backgroundMusic) musicSource.UnPause();
             else
             {

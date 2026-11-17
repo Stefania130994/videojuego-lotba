@@ -72,6 +72,7 @@ namespace Lotba.Game
             if (report.schemaVersion >= 3)
                 events.AppendLine($"Gemas recogidas: {Highlight(result.gems)} (perdidas: {Highlight(result.gemsLost)}) · Saldo: {Highlight(result.gemBalance)}");
                 events.AppendLine($"Rosas: {Highlight(result.pinkGemsCollected)} · Pasadas: {Highlight(result.pinkGemsMissed)} · Casi: {Highlight(result.pinkGemNearMisses)} · Mejor racha: {Highlight(result.bestPinkGemStreak)}");
+                events.AppendLine($"Esquives con rosa: {Highlight(result.pinkDodgeCleared)} superados · {Highlight(result.pinkDodgeCollisions)} choques");
             if (report.schemaVersion >= 9)
                 events.AppendLine($"Mejoras de ritmo: {Highlight(result.speedUpgrades)} · Gemas gastadas: {Highlight(result.gemsSpent)} · " +
                     $"Aumento permanente: {Highlight($"+{result.purchasedSpeedKmh:0.#} km/h")}");

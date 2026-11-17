@@ -197,6 +197,8 @@ namespace Lotba.Game
         private int encounterSection = -1;
         private float lastPatternEnd;
         private float nextVehicleSafeDistance;
+        private int gemRowsSincePink, pinkDodgeSequence;
+        private float lastPinkGemDistance;
         private int nextDecisionGemSection;
         private float decisionGemSectionStart;
         private float laneTime;
@@ -805,7 +807,7 @@ namespace Lotba.Game
         }
         public event Action<int, bool> GemFeedback;
         public event Action<bool, bool> PinkGemMissed;
-        public event Action<bool, int> ImpactFeedback;
+        public event Action<bool, int, bool> ImpactFeedback;
         public RouteDefinition Route => roadStream.Route;
         private enum ItemKind { Gem, Obstacle }
         private sealed class TrackItem
@@ -820,6 +822,7 @@ namespace Lotba.Game
             public bool Active;
             public bool Pink;
             public bool PinkGemApproached;
+            public int PinkDodgeEncounter;
             public MeshRenderer GemMesh;
             public Vector3 GemRestScale;
             public SpriteRenderer GemGlow;
@@ -917,6 +920,8 @@ namespace Lotba.Game
             jump.Reset(); nextPatternDistance = FirstPatternDistance; wave = 0; safeLane = visualLane = 1;
             nextProfileObstacle = 100f;
             nextVehicleSafeDistance = 0f;
+            gemRowsSincePink = pinkDodgeSequence = 0;
+            lastPinkGemDistance = 19f;
             nextDecisionGemSection = 0;
             decisionGemSectionStart = 0f;
             previousVehicleLane = -1;
@@ -1092,7 +1097,7 @@ namespace Lotba.Game
                 if (sameLane && item.Kind == ItemKind.Gem && JumpArc.CanCollect(crossingHeight, item.View.localPosition.y))
                 {
                     bool turboWasReady = session.CanActivateTurbo;
-                    session.CollectGem(item.AirborneNote, item.Pink);
+                    session.CollectGem(item.AirborneNote, item.Pink, item.PinkDodgeEncounter);
                     if (item.View.gameObject.activeInHierarchy)
                         EmitPickupFlash(transform.TransformPoint(new Vector3(item.LaneX, item.View.localPosition.y, 0)), settings.GemFlash);
                     Hide(item);
@@ -1101,7 +1106,7 @@ namespace Lotba.Game
                 else if (item.Pink)
                 {
                     bool nearMiss = item.PinkGemApproached;
-                    bool streakLost = session.MissPinkGem(nearMiss);
+                    bool streakLost = session.MissPinkGem(nearMiss, item.PinkDodgeEncounter);
                     Hide(item);
                     PinkGemMissed?.Invoke(nearMiss, streakLost);
                 }
@@ -1122,7 +1127,8 @@ namespace Lotba.Game
                     item.ImpactTime = session.Elapsed;
                     bool duringBoost = session.BoostActive;
                     int previousGemsLost = session.GemsLost;
-                    session.Hit(item.Definition.Id);
+                    bool streakLost = session.PinkGemStreak > 0;
+                    session.Hit(item.Definition.Id, item.PinkDodgeEncounter);
                     int gemsLost = session.GemsLost - previousGemsLost;
                     if (settings.LogObstacleCollisions)
                     {
@@ -1150,12 +1156,18 @@ namespace Lotba.Game
                         boostCameraBlend = 0f;
                     }
                     if (gemsLost > 0) ScatterGems(gemsLost, duringBoost);
-                    ImpactFeedback?.Invoke(duringBoost, gemsLost);
+                    ImpactFeedback?.Invoke(duringBoost, gemsLost, streakLost);
                 }
             }
             foreach (TrackItem item in items)
             {
                 float behind = item.Definition != null ? -item.Definition.Length * .5f - 9 : -8;
+                if (item.Active && item.Definition != null && item.PinkDodgeEncounter > 0 &&
+                    item.View.localPosition.z < -item.Definition.Length * .5f - item.Definition.ContactPadding)
+                {
+                    if (!item.ObstacleHit) session.ClearPinkDodge(item.PinkDodgeEncounter);
+                    item.PinkDodgeEncounter = 0;
+                }
                 if (item.Active && item.View.localPosition.z < behind) Hide(item);
             }
             AdvanceLetter(travel, step, session, dt);
@@ -1305,7 +1317,7 @@ namespace Lotba.Game
                 if (route.HasDecision(nextDecisionGemSection))
                 {
                     for (int i = 1; i <= 6; i++)
-                        Place(ItemKind.Gem, 1, midpoint - lead * (1f - i / 7f) - distance, 1.1f, pink: i == 6);
+                        Place(ItemKind.Gem, 1, midpoint - lead * (1f - i / 7f) - distance, 1.1f);
                 }
                 nextDecisionGemSection++;
                 decisionGemSectionStart += length;
@@ -1341,7 +1353,8 @@ namespace Lotba.Game
             if (spawnGems)
             {
                 int count = profile.GemsPerThread;
-                occupiedEnd = distance + (count - 1) * profile.GemSpacing;
+                float rowEnd = distance + (count - 1) * profile.GemSpacing;
+                occupiedEnd = rowEnd;
                 if (occupiedEnd + 2f < end && !route.TouchesDecisionApproach(distance, occupiedEnd))
                 {
                     safeLane = Mathf.Clamp(safeLane + random.Next(-1, 2), 0, 2);
@@ -1351,24 +1364,44 @@ namespace Lotba.Game
                     int lane = safeLane;
                     int turnAt = threads == 1 && count >= 5 && profile.LaneChangeChance > 0f &&
                         random.NextDouble() < profile.LaneChangeChance ? random.Next(2, count - 1) : -1;
+                    int roseLane = turnAt >= 0 ? PickNeighborLane(lane) : lane;
+                    gemRowsSincePink++;
+                    bool pink = profile.PinkGemEveryRows > 0 && gemRowsSincePink >= profile.PinkGemEveryRows &&
+                        occupiedEnd - lastPinkGemDistance >= profile.PinkGemMinimumSpacing;
+                    int dodgeEncounter = 0;
+                    int dodgeExitLane = -1;
+                    if (pink && profile.PinkGemDodgeChance > 0f && random.NextDouble() < profile.PinkGemDodgeChance)
+                    {
+                        var catalog = obstacleOverride != null ? obstacleOverride : section.Map.Obstacles;
+                        pink = TrySpawnPinkDodge(profile, catalog, distance, rowEnd, end, riderDistance, speed,
+                            roseLane, out dodgeEncounter, out dodgeExitLane, out occupiedEnd);
+                    }
+                    if (pink)
+                    {
+                        gemRowsSincePink = 0;
+                        lastPinkGemDistance = rowEnd;
+                    }
                     for (int gem = 0; gem < count; gem++)
                     {
                         if (gem == turnAt)
                         {
-                            lane += lane == 1 ? (random.Next(2) == 0 ? -1 : 1) : 1 - lane;
+                            lane = roseLane;
                             // Leave one slot empty so the lane change fits at boost speed.
                             continue;
                         }
                         for (int thread = 0; thread < threads; thread++)
                             Place(ItemKind.Gem, (lane + thread) % 3,
                                 distance - riderDistance + gem * profile.GemSpacing, 1.1f,
-                                pink: thread == 0 && gem == count - 1);
+                                pink: pink && thread == 0 && gem == count - 1,
+                                pinkDodgeEncounter: pink && thread == 0 && gem == count - 1 ? dodgeEncounter : 0);
                     }
-                    safeLane = lane;
+                    safeLane = dodgeExitLane >= 0 ? dodgeExitLane : lane;
                 }
                 float variation = profile.GemIntervalVariation;
                 float jitter = variation > 0f ? 1f + variation * (2f * (float)random.NextDouble() - 1f) : 1f;
                 nextProfileGems = distance + profile.GemInterval * jitter / gemIntensity;
+                if (occupiedEnd > rowEnd)
+                    nextProfileGems = Mathf.Max(nextProfileGems, occupiedEnd + Mathf.Max(8f, (nextVehicleSafeDistance - occupiedEnd) * .5f));
             }
             else
             {
@@ -1400,6 +1433,40 @@ namespace Lotba.Game
             return true;
         }
 
+        private int PickNeighborLane(int lane) => lane == 1 ? (random.Next(2) == 0 ? 0 : 2) : 1;
+
+        private bool TrySpawnPinkDodge(EncounterProfile profile, ObstacleSet catalog, float rowStart,
+            float rowEnd, float sectionEnd, float riderDistance, float speed, int lane,
+            out int encounter, out int exitLane, out float occupiedEnd)
+        {
+            encounter = 0;
+            exitLane = -1;
+            occupiedEnd = rowEnd;
+            ObstacleDefinition vehicle = catalog?.ElevatedBus;
+            if (vehicle == null || vehicle.CollisionHeight <= JumpArc.ApexHeight ||
+                vehicle.Width * .5f + ObstacleLateralPadding >= LaneSpacing || rowStart < 100f)
+                return false;
+
+            RouteDefinition route = roadStream.Route;
+            float boostedSpeed = Mathf.Max(speed, settings.CruiseSpeed + route.SpeedBonusAt(rowEnd)) +
+                RunSession.BoostSpeed + 2f;
+            float front = rowEnd + boostedSpeed * (settings.LaneChangeTime + profile.PinkGemDodgeReactionTime);
+            float length = vehicle.Length + 2f * vehicle.ContactPadding;
+            float vehicleEnd = front + length;
+            float clearance = Mathf.Max(profile.ObstacleClearance, VehicleLaneSwitchGap(boostedSpeed, catalog));
+            if (front < nextVehicleSafeDistance || vehicleEnd + clearance >= sectionEnd ||
+                route.TouchesDecisionApproach(rowStart, vehicleEnd + clearance)) return false;
+
+            encounter = ++pinkDodgeSequence;
+            exitLane = PickNeighborLane(lane);
+            occupiedEnd = vehicleEnd;
+            Place(ItemKind.Obstacle, lane, front + length * .5f - riderDistance, 0f, vehicle,
+                pinkDodgeEncounter: encounter);
+            nextVehicleSafeDistance = vehicleEnd + clearance;
+            nextProfileObstacle = Mathf.Max(nextProfileObstacle, nextVehicleSafeDistance);
+            return true;
+        }
+
         private float VehicleLaneSwitchGap(float speed, ObstacleSet catalog = null)
         {
             // Budget for a turbo activation while approaching an encounter already on the track.
@@ -1420,7 +1487,7 @@ namespace Lotba.Game
             bool jumping = !gentle && distance > 155f && wave % 4 == 2;
             for (int i = 0; i < 4; i++)
                 Place(ItemKind.Gem, safeLane, z + i * spacing, jumping ? (i == 0 || i == 3 ? 2.05f : 2.7f) : 1.1f,
-                    airborneNote: jumping ? i : -1, pink: i == 3);
+                    airborneNote: jumping ? i : -1);
             ObstacleSet obstacleSet = obstacleOverride != null ? obstacleOverride : roadStream.Route.MapAtDistance(distance).Obstacles;
             float maximumLength = gentle || distance < 220f ? 4.5f : float.PositiveInfinity;
             float obstacleOffset = spacing * 1.5f;
@@ -1736,7 +1803,7 @@ namespace Lotba.Game
             UpdateGemGlow(item);
         }
         private TrackItem Place(ItemKind kind, int lane, float z, float height, ObstacleDefinition definition = null,
-            int airborneNote = -1, bool pink = false)
+            int airborneNote = -1, bool pink = false, int pinkDodgeEncounter = 0)
         {
             TrackItem item = null;
             foreach (TrackItem candidate in items)
@@ -1756,6 +1823,7 @@ namespace Lotba.Game
             item.ImpactTime = null;
             item.AirborneNote = airborneNote;
             item.PinkGemApproached = false;
+            item.PinkDodgeEncounter = pinkDodgeEncounter;
             item.LaneX = (lane - 1) * LaneSpacing;
             if (definition != null && definition.RideableRoof)
             {

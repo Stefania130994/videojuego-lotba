@@ -39,8 +39,9 @@ namespace Lotba.Game
             hud.StartRequested += RequestStart; hud.BrakeRequested += RequestBrake;
             hud.PauseRequested += RequestPause; hud.MenuRequested += RequestMenu;
             hud.SoundRequested += ToggleSound; hud.SettingsRequested += OpenSettings;
+            hud.MusicVolumeRequested += audioFeedback.SetMusicLevel;
+            hud.EffectsVolumeRequested += audioFeedback.SetEffectsLevel;
             hud.VibrationRequested += devices.CycleVibrationLevel;
-            hud.VibrationTestRequested += TestVibration;
             hud.QualityRequested += CycleQuality;
             hud.SpeedChosen += ChooseSpeed;
             hud.TurboRequested += ActivateTurbo;
@@ -53,6 +54,7 @@ namespace Lotba.Game
 
         private void Start()
         {
+            hud.SetAudioLevels(audioFeedback.MusicLevel, audioFeedback.EffectsLevel);
             world.PrepareOpening();
             hud.Render(session, settings, muted, devices, IsHighQuality);
         }
@@ -197,9 +199,10 @@ namespace Lotba.Game
             }
             if (streakLost) audioFeedback.PlayPinkGemStreakLost();
         }
-        private void OnImpact(bool duringBoost, int gemsLost)
+        private void OnImpact(bool duringBoost, int gemsLost, bool streakLost)
         {
             audioFeedback.PlayCollision(duringBoost);
+            if (streakLost) audioFeedback.PlayPinkGemStreakLost();
             if (gemsLost > 0) audioFeedback.PlayGemLoss(duringBoost);
             devices.Feedback(true, duringBoost);
         }
@@ -286,7 +289,6 @@ namespace Lotba.Game
             session.Pause(); trackingSwipe = false; laneRequested = 0; jumpRequested = false;
             devices.CancelFeedback(); audioFeedback.Stop();
         }
-        private void TestVibration() => hud.SetVibrationTestResult(devices.TestVibration());
 
         private void OnDestroy()
         {
@@ -294,8 +296,9 @@ namespace Lotba.Game
             hud.StartRequested -= RequestStart; hud.BrakeRequested -= RequestBrake;
             hud.PauseRequested -= RequestPause; hud.MenuRequested -= RequestMenu;
             hud.SoundRequested -= ToggleSound; hud.SettingsRequested -= OpenSettings;
+            hud.MusicVolumeRequested -= audioFeedback.SetMusicLevel;
+            hud.EffectsVolumeRequested -= audioFeedback.SetEffectsLevel;
             hud.VibrationRequested -= devices.CycleVibrationLevel;
-            hud.VibrationTestRequested -= TestVibration;
             hud.QualityRequested -= CycleQuality;
             hud.SpeedChosen -= ChooseSpeed;
             hud.TurboRequested -= ActivateTurbo;

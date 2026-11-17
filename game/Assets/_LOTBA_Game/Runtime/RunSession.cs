@@ -209,25 +209,28 @@ namespace Lotba.Game
             return true;
         }
         public int PinkGemStreak { get; private set; }
-        public int ScoreMultiplier => PinkGemStreak + 1;
+        public int ScoreMultiplier => Math.Max(1, PinkGemStreak);
         public int PinkGemsCollected { get; private set; }
         public int PinkGemsMissed { get; private set; }
         public int BestPinkGemStreak { get; private set; }
 
         public int PinkGemNearMisses { get; private set; }
+        public int PinkDodgeCleared { get; private set; }
+        public int PinkDodgeCollisions { get; private set; }
 
-        public bool MissPinkGem(bool nearMiss)
+        public bool MissPinkGem(bool nearMiss, int pinkDodgeEncounter = 0)
         {
             if (State != RunState.Running) return false;
             PinkGemsMissed++;
             if (nearMiss) PinkGemNearMisses++;
             int lostStreak = PinkGemStreak;
             PinkGemStreak = 0;
-            Record("pink_gem_missed", streakBefore: lostStreak, pinkGemNearMiss: nearMiss);
+            Record("pink_gem_missed", streakBefore: lostStreak, pinkGemNearMiss: nearMiss,
+                pinkDodgeEncounter: pinkDodgeEncounter);
             return lostStreak > 0;
         }
 
-        public long CollectGem(int airborneNote = -1, bool pink = false)
+        public long CollectGem(int airborneNote = -1, bool pink = false, int pinkDodgeEncounter = 0)
         {
             if (State != RunState.Running) return 0;
             int gemCount = BoostActive ? 2 : 1;
@@ -243,12 +246,21 @@ namespace Lotba.Game
             Record("gem_collected", airborneNote >= 0 ? "air" : "ground", reward,
                 gemDelta: gemCount);
             if (gemCount > 1) Record("boost_bonus_gem");
-            if (pink) Record("pink_gem_collected");
+            if (pink) Record("pink_gem_collected", pinkDodgeEncounter: pinkDodgeEncounter);
             return reward;
         }
-        public long Hit(string obstacleId = null)
+        public void ClearPinkDodge(int encounter)
+        {
+            if (State != RunState.Running) return;
+            PinkDodgeCleared++;
+            Record("pink_dodge_cleared", pinkDodgeEncounter: encounter);
+        }
+
+        public long Hit(string obstacleId = null, int pinkDodgeEncounter = 0)
         {
             if (State != RunState.Running || IsProtected) return 0;
+            int lostStreak = PinkGemStreak;
+            PinkGemStreak = 0;
             turboCharge = 0;
             bool duringBoost = BoostActive;
             int divisor = duringBoost ? 2 : 4;
@@ -263,7 +275,9 @@ namespace Lotba.Game
             }
             impactTime = Elapsed;
             protectedUntil = impactTime + ImpactProtectionSeconds;
-            Record("obstacle_hit", obstacleId, -loss, gemDelta: -gemLoss, duringBoost: duringBoost);
+            if (pinkDodgeEncounter > 0) PinkDodgeCollisions++;
+            Record("obstacle_hit", obstacleId, -loss, gemDelta: -gemLoss, duringBoost: duringBoost,
+                pinkDodgeEncounter: pinkDodgeEncounter, streakBefore: lostStreak);
             return loss;
         }
         public void Pause()
@@ -312,6 +326,7 @@ namespace Lotba.Game
                     gemsLost = GemsLost, gemBalance = GemBalance, boostCollisions = BoostCollisions,
                     pinkGemsCollected = PinkGemsCollected, pinkGemsMissed = PinkGemsMissed,
                     pinkGemNearMisses = PinkGemNearMisses,
+                    pinkDodgeCleared = PinkDodgeCleared, pinkDodgeCollisions = PinkDodgeCollisions,
                     bestPinkGemStreak = BestPinkGemStreak,
                     gemsSpent = GemsSpent, speedUpgrades = SpeedUpgrades, purchasedSpeedKmh = PurchasedSpeed * 3.6f
                 };
@@ -330,7 +345,7 @@ namespace Lotba.Game
 
         private void Record(string type, string detail = null, long delta = 0,
             int gemDelta = 0, bool duringBoost = false, int decisionNumber = 0, int streakBefore = 0,
-            bool pinkGemNearMiss = false)
+            bool pinkGemNearMiss = false, int pinkDodgeEncounter = 0)
         {
             if (Telemetry == null) return;
             Telemetry.events.Add(new RunTelemetryEvent
@@ -343,6 +358,7 @@ namespace Lotba.Game
                 decisionNumber = decisionNumber,
                 pinkGemStreak = PinkGemStreak, scoreMultiplier = ScoreMultiplier, pinkGemStreakBefore = streakBefore,
                 pinkGemNearMiss = pinkGemNearMiss,
+                pinkDodgeEncounter = pinkDodgeEncounter,
                 purchasedSpeedKmh = PurchasedSpeed * 3.6f
             });
         }

@@ -14,14 +14,16 @@ namespace Lotba.Game
         [SerializeField] private TMPro.TMP_Text soundLabel, vibrationLabel;
         [SerializeField] private UnityEngine.UI.Button qualityButton;
         [SerializeField] private TMPro.TMP_Text qualityLabel;
-        [SerializeField] private UnityEngine.UI.Button previousQuality, vibrationDebugToggle, vibrationTestButton;
+        [SerializeField] private UnityEngine.UI.Button previousQuality;
         [SerializeField] private UnityEngine.UI.Image soundSwitch;
-        [SerializeField] private RectTransform soundSwitchKnob, vibrationDebugSection;
+        [SerializeField] private GameObject audioSliders;
+        [SerializeField] private UnityEngine.UI.Slider musicVolumeSlider, effectsVolumeSlider;
+        public event Action<float> MusicVolumeRequested, EffectsVolumeRequested;
+        [SerializeField] private RectTransform soundSwitchKnob;
         private Vector2 soundOnMin, soundOnMax;
-        [SerializeField] private TMPro.TMP_Text vibrationTestResult, settingsNotice, vibrationDebugLabel;
         [SerializeField] private TMPro.TMP_Text score, gems, resultTitle;
         [SerializeField] private TMPro.TMP_Text resultPoints;
-        [SerializeField] private TMPro.TMP_Text[] resultRows = new TMPro.TMP_Text[5];
+        [SerializeField] private TMPro.TMP_Text[] resultRows = new TMPro.TMP_Text[6];
         [SerializeField] private UnityEngine.UI.Image endingBackground;
         [SerializeField] private CanvasGroup endingMessage, endingResults;
         [SerializeField] private TMPro.TMP_Text endingReflection;
@@ -70,7 +72,6 @@ namespace Lotba.Game
         public void CloseTelemetry() => telemetryPanel?.Close();
         public event Action StartRequested, MenuRequested, PauseRequested, BrakeRequested, SoundRequested, SettingsRequested, VibrationRequested;
         public event Action<int> QualityRequested;
-        public event Action VibrationTestRequested;
         public event Action TurboRequested;
         public event Action UiClicked;
         public event Action<bool> SpeedChosen;
@@ -97,8 +98,6 @@ namespace Lotba.Game
             BindRanking();
             telemetryPanel.Bind();
             previousQuality.onClick.AddListener(() => QualityRequested?.Invoke(-1));
-            vibrationDebugToggle.onClick.AddListener(ToggleVibrationDebug);
-            vibrationTestButton.onClick.AddListener(() => VibrationTestRequested?.Invoke());
             keepSpeedButton.onClick.AddListener(() => SpeedChosen?.Invoke(false));
             increaseSpeedButton.onClick.AddListener(() => SpeedChosen?.Invoke(true));
             turboButton.onClick.AddListener(() => TurboRequested?.Invoke());
@@ -113,6 +112,8 @@ namespace Lotba.Game
             foreach (var button in configurationButtons) button.onClick.AddListener(() => SettingsRequested?.Invoke());
             closeSettings.onClick.AddListener(() => SettingsOpen = false);
             soundButton.onClick.AddListener(() => SoundRequested?.Invoke());
+            musicVolumeSlider.onValueChanged.AddListener(value => MusicVolumeRequested?.Invoke(value));
+            effectsVolumeSlider.onValueChanged.AddListener(value => EffectsVolumeRequested?.Invoke(value));
             vibrationButton.onClick.AddListener(() => VibrationRequested?.Invoke());
             qualityButton.onClick.AddListener(() => QualityRequested?.Invoke(1));
             foreach (var button in GetComponentsInChildren<UnityEngine.UI.Button>(true))
@@ -120,14 +121,10 @@ namespace Lotba.Game
                     button.onClick.AddListener(() => UiClicked?.Invoke());
         }
 
-        public void SetVibrationTestResult(string result) => vibrationTestResult.text = result;
-
-        private void ToggleVibrationDebug()
+        public void SetAudioLevels(float music, float effects)
         {
-            bool show = !vibrationDebugSection.gameObject.activeSelf;
-            vibrationDebugSection.gameObject.SetActive(show);
-            settingsNotice.gameObject.SetActive(!show);
-            vibrationDebugLabel.text = show ? "OCULTAR PRUEBA · SOLO PARA DEBUG" : "MOSTRAR PRUEBA · SOLO PARA DEBUG";
+            musicVolumeSlider.SetValueWithoutNotify(music);
+            effectsVolumeSlider.SetValueWithoutNotify(effects);
         }
 
         private void RenderEnding(RunEnding ending, bool opening, GameSettings settings)
@@ -169,7 +166,7 @@ namespace Lotba.Game
             endingReflection.maxVisibleCharacters = Mathf.Min(typed, endingReflectionCharacters);
             float buttonAge = messageAge - endingReflectionCharacters / charactersPerSecond - settings.EndingReadingHoldSeconds;
             float resultsAge = Time.unscaledTime - endingContinuedAt;
-            float reveal = FadeIn(resultsAge, settings.EndingResultsFadeSeconds);
+            float reveal = resultsAge >= 0f ? 1f : 0f;
             float buttonReveal = FadeIn(buttonAge, settings.EndingContinueFadeSeconds);
             bool canContinue = float.IsPositiveInfinity(endingContinuedAt) && buttonReveal >= 1f;
             endingMessage.alpha = FadeIn(artworkAge, settings.EndingArtworkFadeSeconds) * (1f - reveal);
@@ -244,7 +241,7 @@ namespace Lotba.Game
             if (pinkGemBadge != null)
             {
                 int multiplier = session.ScoreMultiplier;
-                pinkGemBadge.gameObject.SetActive(visible && multiplier > 1);
+                pinkGemBadge.gameObject.SetActive(visible && session.PinkGemStreak > 0);
                 if (displayedPinkGemMultiplier != multiplier)
                 {
                     displayedPinkGemMultiplier = multiplier;
@@ -395,6 +392,7 @@ namespace Lotba.Game
                 running && !session.OfferPending);
             if (SettingsOpen)
             {
+                audioSliders.SetActive(!muted);
                 soundSwitch.color = muted ? Color.Lerp(settings.Brand.Black, settings.Brand.White, .35f) : settings.Brand.Green;
                 soundSwitchKnob.anchorMin = muted ? new Vector2(1f - soundOnMax.x, soundOnMin.y) : soundOnMin;
                 soundSwitchKnob.anchorMax = muted ? new Vector2(1f - soundOnMin.x, soundOnMax.y) : soundOnMax;
@@ -412,14 +410,18 @@ namespace Lotba.Game
                     _ => "RECORRIDO\nCOMPLETADO"
                 };
                 resultPoints.text = $"{session.Score:N0} PUNTOS";
-                resultRows[0].text = $"Recorriste <color=#84CCF4><b>{session.Distance / 1000f:0.0#} km</b></color>";
-                resultRows[1].text = $"Recolectaste <color=#84CCF4><b>{session.Gems} gemas</b></color>";
-                resultRows[2].text = $"Chocaste <color=#FF9378><b>{Times(session.Collisions)}</b></color>";
-                resultRows[3].text = $"Trataste de recuperarte <color=#6FDFAF><b>{Times(session.RecoveryAttempts)}</b></color>";
-                resultRows[4].text = $"Aceleraste <color=#FFD18A><b>{Times(session.VoluntaryBoosts + session.SpeedUpgrades)}</b></color>";
+                resultRows[0].text = $"Recorriste {ResultHighlight($"{session.Distance / 1000f:0.0#} km", settings.Brand.White)}";
+                resultRows[1].text = $"Recolectaste {ResultHighlight($"{session.Gems} gemas", settings.Brand.Pink)}";
+                resultRows[2].text = $"Chocaste {ResultHighlight(Times(session.Collisions), settings.Brand.Red)}";
+                resultRows[3].text = $"Trataste de recuperarte {ResultHighlight(Times(session.RecoveryAttempts), settings.Brand.Green)}";
+                resultRows[4].text = $"Aceleraste {ResultHighlight(Times(session.VoluntaryBoosts + session.SpeedUpgrades), settings.Brand.Yellow)}";
+                if (resultRows.Length > 5 && resultRows[5] != null)
+                    resultRows[5].text = $"Racha máxima {ResultHighlight($"×{session.BestPinkGemStreak}", settings.Brand.Yellow)}";
             }
         }
 
         private static string Times(int count) => count == 1 ? "1 vez" : $"{count} veces";
+        private static string ResultHighlight(string text, Color color) =>
+            $"<color=#{ColorUtility.ToHtmlStringRGB(color)}><b>{text}</b></color>";
     }
 }
