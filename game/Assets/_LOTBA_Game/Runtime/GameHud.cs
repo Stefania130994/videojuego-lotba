@@ -704,8 +704,14 @@ namespace Lotba.Game
             var text = new System.Text.StringBuilder();
             for (int i = 0; i < word.Length; i++)
             {
+                if (word[i] == ' ')
+                {
+                    text.Append("   ");
+                    continue;
+                }
+                if (i > 0 && word[i - 1] != ' ') text.Append(' ');
                 if (collected[i]) text.Append("<color=#FFD14C>").Append(word[i]).Append("</color>");
-                else text.Append(word[i] == ' ' ? ' ' : '_');
+                else text.Append('_');
             }
             wordLabel.text = text.ToString();
             if (!wordBanner.gameObject.activeSelf || Time.unscaledTime >= wordBannerUntil)

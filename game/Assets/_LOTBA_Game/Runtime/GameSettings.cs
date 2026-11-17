@@ -153,6 +153,11 @@ namespace Lotba.Game
         public float EndingCharactersPerSecond => Mathf.Max(1f, endingCharactersPerSecond);
         public float EndingReadingHoldSeconds => Mathf.Max(0f, endingReadingHoldSeconds);
         public float EndingResultsFadeSeconds => Mathf.Max(0f, endingResultsFadeSeconds);
+
+        [Header("Debug")]
+        [SerializeField, Tooltip("Escribe en la Console los choques con penalización de Game y Art Preview.")]
+        private bool logObstacleCollisions;
+        public bool LogObstacleCollisions => logObstacleCollisions;
     }
     [System.Serializable]
     public sealed class PickupFlashSettings

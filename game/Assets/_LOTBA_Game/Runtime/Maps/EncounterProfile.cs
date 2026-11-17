@@ -15,6 +15,7 @@ namespace Lotba.Game
         [SerializeField, Min(.5f)] private float gemSpacing = 2.5f;
         [SerializeField, Min(4f)] private float obstacleInterval = 32f;
         [SerializeField, Min(2f)] private float obstacleClearance = 10f;
+        [SerializeField, Range(0f, 1f)] private float extraObstacleChance;
 
         public int GemThreads => Mathf.Clamp(gemThreads, 1, 3);
         public float ParallelThreadChance => parallelThreadChance;
@@ -26,5 +27,6 @@ namespace Lotba.Game
         public float GemInterval => Mathf.Max(4f, gemInterval);
         public float ObstacleInterval => Mathf.Max(4f, obstacleInterval);
         public float ObstacleClearance => Mathf.Max(2f, obstacleClearance);
+        public float ExtraObstacleChance => extraObstacleChance;
     }
 }
