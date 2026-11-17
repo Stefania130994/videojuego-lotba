@@ -53,6 +53,11 @@ namespace Lotba.Game
         private void Update()
         {
             Keyboard keyboard = Keyboard.current;
+            if (hud.RankingOpen)
+            {
+                if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame) hud.CloseRanking();
+                return;
+            }
             if (hud.TelemetryOpen)
             {
                 if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame) hud.CloseTelemetry();

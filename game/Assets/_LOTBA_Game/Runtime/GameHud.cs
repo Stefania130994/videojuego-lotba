@@ -4,7 +4,7 @@ using UnityEngine;
 namespace Lotba.Game
 {
     /// <summary>Scene UI bindings. Configuration exposes only implemented, available capabilities.</summary>
-    public sealed class GameHud : MonoBehaviour
+    public sealed partial class GameHud : MonoBehaviour
     {
         [SerializeField] private TMPro.TMP_Text gameTitle, developmentLabel, identityFooter, buildVersion;
         [SerializeField] private GameObject readyPanel, pausePanel, resultPanel, raceHud, controls, settingsPanel;
@@ -90,6 +90,7 @@ namespace Lotba.Game
             StyleMainMenu();
             StyleSettings();
             CreateEndingScreen();
+            CreateRanking();
             telemetryPanel = new RunTelemetryPanel(resultPanel, resultStats, menu);
             exit.gameObject.SetActive(Application.platform != RuntimePlatform.WebGLPlayer);
             exit.onClick.AddListener(ExitGame);
@@ -132,8 +133,7 @@ namespace Lotba.Game
             rankingButton.targetGraphic = rankingImage;
             StyleMenuButton(rankingButton, shortMenuButton, slate,
                 new Vector2(.265f, .033f), new Vector2(.485f, .129f), "RÉCORDS", 17f, trophyIcon);
-            rankingButton.transition = UnityEngine.UI.Selectable.Transition.None;
-            rankingButton.interactable = false;
+            rankingButton.onClick.AddListener(() => OpenRanking(false));
             StyleMenuButton(exit, wideMenuButton, new Color32(197, 40, 49, 255),
                 new Vector2(.16f, .141f), new Vector2(.84f, .241f), "SALIR", 40f).fontSharedMaterial = controlLabelMaterial;
         }
@@ -322,7 +322,7 @@ namespace Lotba.Game
                 endingMessage.alpha = 0f;
                 endingResults.alpha = 1f;
                 endingResults.interactable = endingResults.blocksRaycasts = true;
-                resultPanel.SetActive(!TelemetryOpen);
+                resultPanel.SetActive(!TelemetryOpen && !RankingOpen);
                 return;
             }
             float age = Time.unscaledTime - endingStarted;
@@ -349,7 +349,7 @@ namespace Lotba.Game
             endingBackground.color = background;
             endingResults.alpha = reveal;
             endingResults.interactable = endingResults.blocksRaycasts = reveal >= 1f;
-            resultPanel.SetActive(resultsAge >= 0f && !TelemetryOpen);
+            resultPanel.SetActive(resultsAge >= 0f && !TelemetryOpen && !RankingOpen);
         }
 
         private TMPro.TextMeshProUGUI MenuCaption(string name, Transform parent, Vector2 min, Vector2 max,
@@ -674,6 +674,7 @@ namespace Lotba.Game
         public void ResetView()
         {
             SettingsOpen = false;
+            ClearRankingOffer();
             endingBackground.gameObject.SetActive(false);
             gemPulseUntil = 0f;
             previousGemBalance = -1;
@@ -744,7 +745,7 @@ namespace Lotba.Game
             bool finished = session.State == RunState.Finished;
             bool openingEnding = finished && !endingBackground.gameObject.activeSelf;
             if (finished) SettingsOpen = false;
-            readyPanel.SetActive(session.State == RunState.Ready && !SettingsOpen);
+            readyPanel.SetActive(session.State == RunState.Ready && !SettingsOpen && !RankingOpen);
             pausePanel.SetActive(session.State == RunState.Paused && !SettingsOpen);
             settingsPanel.SetActive(SettingsOpen);
             telemetryPanel?.SetReport(finished ? session.Telemetry : null);
@@ -825,6 +826,7 @@ namespace Lotba.Game
             }
             if (openingEnding)
             {
+                SetRankingOffer(session.Score);
                 resultTitle.text = session.Ending switch
                 {
                     RunEnding.Brake => "VOS MARCASTE\nEL FINAL",
