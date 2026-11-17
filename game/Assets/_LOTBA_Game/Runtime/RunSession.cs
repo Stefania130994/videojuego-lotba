@@ -3,7 +3,7 @@ using System;
 namespace Lotba.Game
 {
     public enum RunState { Ready, Running, Paused, Finished }
-    public enum RunEnding { None, Brake, RouteComplete = 3 }
+    public enum RunEnding { None, Brake, RouteComplete = 3, Overload }
 
     /// <summary>Run state only: no cards, menus, physics, or scene object ownership.</summary>
     public sealed class RunSession
@@ -249,6 +249,12 @@ namespace Lotba.Game
         {
             if (State == RunState.Running || State == RunState.Paused) Finish(RunEnding.Brake);
         }
+
+        public void EndForOverload()
+        {
+            if (State == RunState.Running) Finish(RunEnding.Overload);
+        }
+
         private void Finish(RunEnding ending)
         {
             Ending = ending;
@@ -256,7 +262,12 @@ namespace Lotba.Game
             OfferPending = false;
             if (Telemetry != null)
             {
-                string reason = ending == RunEnding.Brake ? "brake" : "route_complete";
+                string reason = ending switch
+                {
+                    RunEnding.Brake => "brake",
+                    RunEnding.Overload => "overload",
+                    _ => "route_complete"
+                };
                 Record("run_finished", reason);
                 Telemetry.summary = new RunTelemetrySummary
                 {

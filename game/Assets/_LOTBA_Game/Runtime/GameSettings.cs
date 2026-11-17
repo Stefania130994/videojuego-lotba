@@ -127,6 +127,23 @@ namespace Lotba.Game
         public bool PreparePatternsBeyondVisibility => preparePatternsBeyondVisibility;
         public float PatternVisibilityMargin => Mathf.Max(0f, patternVisibilityMargin);
         public int Seed => seed;
+
+        [Header("Cierre de partida")]
+        [SerializeField] private string endingHeading = "HABLAR ES GANAR";
+        [SerializeField, TextArea(3, 6)] private string endingReflection =
+            "En las apuestas, las ganas de ganar o recuperar lo perdido pueden empujarte a seguir. También podés frenar y hablarlo.";
+        [SerializeField, Min(0f), Tooltip("Segundos de fundido a negro después del derrape.")]
+        private float endingBrakeFadeSeconds = 1.45f;
+        [SerializeField, Min(1f)] private float endingCharactersPerSecond = 25f;
+        [SerializeField, Min(0f), Tooltip("Segundos de lectura después del último carácter.")]
+        private float endingReadingHoldSeconds = 5f;
+        [SerializeField, Min(0f)] private float endingResultsFadeSeconds = .75f;
+        public string EndingHeading => endingHeading;
+        public string EndingReflection => endingReflection;
+        public float EndingBrakeFadeSeconds => Mathf.Max(0f, endingBrakeFadeSeconds);
+        public float EndingCharactersPerSecond => Mathf.Max(1f, endingCharactersPerSecond);
+        public float EndingReadingHoldSeconds => Mathf.Max(0f, endingReadingHoldSeconds);
+        public float EndingResultsFadeSeconds => Mathf.Max(0f, endingResultsFadeSeconds);
     }
     [System.Serializable]
     public sealed class PickupFlashSettings

@@ -7,7 +7,7 @@ namespace Lotba.Game
     [Serializable]
     public sealed class RunTelemetry
     {
-        public int schemaVersion = 13;
+        public int schemaVersion = 14;
         public string runId = Guid.NewGuid().ToString("N");
         public string gameVersion = Application.version;
         public string route;

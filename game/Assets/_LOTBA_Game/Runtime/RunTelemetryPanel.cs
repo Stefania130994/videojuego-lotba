@@ -244,6 +244,7 @@ namespace Lotba.Game
         }
 
         private static string Ending(string reason) => reason == "brake" ? "Frenado voluntario" :
+            reason == "overload" ? "Corte por sobrecarga" :
             reason == "route_complete" ? "Recorrido completado" : "Fin por tiempo";
 
     }

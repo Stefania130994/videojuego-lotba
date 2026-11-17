@@ -15,6 +15,42 @@ namespace Lotba.Game
         [SerializeField] private RoadStreamer roadStream;
         [SerializeField] private Camera worldCamera;
         private float riderDistance;
+        internal const float BrakeSlideSeconds = .50f;
+        private float brakeSlideStarted = float.NegativeInfinity;
+        private Transform brakeVisual, brakeFrontWheel, brakeRearWheel;
+        private BrakePart brakeBars, brakeFork, brakeHead, brakeTorso, brakeInnerLeg, brakeOuterLeg;
+        private Quaternion brakeFrontSpin;
+        private Vector3 brakeCameraPosition;
+        private float brakeCameraFov, brakeInitialSpeed, nextBrakeParticle;
+        private bool brakeCameraEffects, brakeGroundEffects;
+        private ParticleSystem brakeDust;
+        private Material brakeDustMaterial;
+        private Mesh brakeDustMesh;
+        private LineRenderer brakeMark;
+        private int brakeMarkPoints;
+        private float brakeMarkStarted = float.NegativeInfinity;
+        private static readonly Color BrakeMarkColor = new Color32(40, 42, 45, 175);
+
+        private readonly struct BrakePart
+        {
+            public readonly Transform View;
+            public readonly Vector3 Position;
+            public readonly Quaternion Rotation;
+
+            public BrakePart(Transform view)
+            {
+                View = view;
+                Position = view == null ? Vector3.zero : view.localPosition;
+                Rotation = view == null ? Quaternion.identity : view.localRotation;
+            }
+
+            public void Apply(Vector3 offset, Quaternion rotation)
+            {
+                if (View != null) View.SetLocalPositionAndRotation(Position + offset, rotation * Rotation);
+            }
+
+            public void Reset() => Apply(Vector3.zero, Quaternion.identity);
+        }
         private float depthBendStart, depthBendStrength;
         private bool refreshDepthBend;
         private bool depthBendRequested;
@@ -594,11 +630,19 @@ namespace Lotba.Game
             roadStream.Initialize(settings.DepthBendShader);
             wheelOrigins = new Quaternion[wheels.Length];
             for (int i = 0; i < wheels.Length; i++) wheelOrigins[i] = wheels[i].localRotation;
+            PrepareBrakeVisuals();
             for (int i = 0; i < 72; i++) AddToPool(gemPrefab, ItemKind.Gem);
             foreach (var section in roadStream.Route.Sections) WarmSet(section.Map.Obstacles);
         }
         public void ResetTrack()
         {
+            brakeSlideStarted = float.NegativeInfinity;
+            brakeMarkStarted = float.NegativeInfinity;
+            if (brakeMark != null) brakeMark.positionCount = 0;
+            if (brakeDust != null) brakeDust.Stop(false, ParticleSystemStopBehavior.StopEmittingAndClear);
+            brakeVisual.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+            brakeBars.Reset(); brakeFork.Reset(); brakeHead.Reset(); brakeTorso.Reset();
+            brakeInnerLeg.Reset(); brakeOuterLeg.Reset();
             turboAura?.Clear();
             ClearGemScatter();
             riderDistance = 0f;
@@ -900,6 +944,8 @@ namespace Lotba.Game
 
         private void OnDestroy()
         {
+            if (brakeDustMaterial != null) Destroy(brakeDustMaterial);
+            if (brakeDustMesh != null) Destroy(brakeDustMesh);
             if (riderImpactMaterial != null) Destroy(riderImpactMaterial);
             foreach (Material fade in riderFadeCopies.Values) Destroy(fade);
         }
@@ -1437,8 +1483,238 @@ namespace Lotba.Game
             gemFlashStarted = Time.unscaledTime;
         }
 
+        public void EndRun(bool braked, float speedBeforeBrake, bool cameraAndParticles)
+        {
+            ClearImpactBlink();
+            ClearTurboAura();
+            ClearGemScatter();
+            if (gemFlash != null) gemFlash.enabled = false;
+            if (letterBeam != null) letterBeam.enabled = false;
+            UpdateLetterMotes(null, 0f);
+            if (!braked) return;
+
+            brakeSlideStarted = Time.unscaledTime;
+            brakeInitialSpeed = Mathf.Max(0f, speedBeforeBrake);
+            brakeFrontSpin = brakeFrontWheel != null ? brakeFrontWheel.localRotation : Quaternion.identity;
+            brakeCameraPosition = worldCamera.transform.localPosition;
+            brakeCameraFov = referenceFieldOfView;
+            brakeCameraEffects = cameraAndParticles;
+            brakeGroundEffects = cameraAndParticles && brakeRearWheel != null && brakeDust != null &&
+                rider.localPosition.y <= .06f;
+            nextBrakeParticle = 0f;
+            brakeMarkPoints = 0;
+            if (!brakeGroundEffects) return;
+            brakeMark.positionCount = 0;
+            brakeMark.startColor = brakeMark.endColor = BrakeMarkColor;
+            brakeMarkStarted = brakeSlideStarted;
+            brakeDust.Play();
+            if (brakeInitialSpeed > 0f) AddBrakeContact(0f, brakeInitialSpeed);
+        }
+
+        private void PrepareBrakeVisuals()
+        {
+            brakeVisual = new GameObject("Visual del ciclista").transform;
+            brakeVisual.SetParent(rider, false);
+            for (int i = rider.childCount - 2; i >= 0; i--)
+            {
+                Transform part = rider.GetChild(i);
+                if (part.GetComponentInChildren<Collider>(true) == null)
+                    part.SetParent(brakeVisual, false);
+            }
+
+            brakeBars = new BrakePart(brakeVisual.Find("Handlebars"));
+            brakeFork = new BrakePart(brakeVisual.Find("Fork"));
+            brakeHead = GroupBrakeMesh("Head", "Cabeza de frenada");
+            brakeTorso = GroupBrakeMesh("Hoodie", "Torso de frenada");
+            for (int i = brakeVisual.childCount - 1; i >= 0; i--)
+            {
+                Transform part = brakeVisual.GetChild(i);
+                if (brakeHead.View != null && part.name.StartsWith("Helmet", System.StringComparison.Ordinal))
+                    part.SetParent(brakeHead.View, true);
+                if (brakeTorso.View != null && part.name == "Hood")
+                    part.SetParent(brakeTorso.View, true);
+            }
+            foreach (Transform wheel in wheels)
+            {
+                if (brakeFrontWheel == null || wheel.localPosition.z > brakeFrontWheel.localPosition.z)
+                    brakeFrontWheel = wheel;
+                if (brakeRearWheel == null || wheel.localPosition.z < brakeRearWheel.localPosition.z)
+                    brakeRearWheel = wheel;
+            }
+            foreach (Transform leg in pedals)
+            {
+                if (leg.localPosition.x >= 0f) brakeInnerLeg = new BrakePart(leg);
+                else brakeOuterLeg = new BrakePart(leg);
+            }
+
+            CreateBrakeGroundEffects();
+        }
+
+        private BrakePart GroupBrakeMesh(string meshName, string pivotName)
+        {
+            Transform mesh = brakeVisual.Find(meshName);
+            if (mesh == null) return default;
+            var pivot = new GameObject(pivotName).transform;
+            pivot.SetParent(brakeVisual, false);
+            pivot.localPosition = mesh.localPosition;
+            mesh.SetParent(pivot, true);
+            return new BrakePart(pivot);
+        }
+
+        private void CreateBrakeGroundEffects()
+        {
+            Shader shader = Shader.Find("Sprites/Default");
+            if (shader == null) return;
+            brakeDustMaterial = new Material(shader) { mainTexture = Texture2D.whiteTexture };
+            var emitter = new GameObject("Partículas de frenada");
+            emitter.transform.SetParent(transform, false);
+            brakeDust = emitter.AddComponent<ParticleSystem>();
+            brakeDust.Stop(false, ParticleSystemStopBehavior.StopEmittingAndClear);
+            var main = brakeDust.main;
+            main.playOnAwake = false;
+            main.loop = false;
+            main.useUnscaledTime = true;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.maxParticles = 32;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(.18f, .36f);
+            main.startRotation3D = true;
+            main.startRotationX = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+            main.startRotationY = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+            main.startRotationZ = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+            var emission = brakeDust.emission;
+            emission.enabled = false;
+            var shape = brakeDust.shape;
+            shape.enabled = false;
+            var colorOverLifetime = brakeDust.colorOverLifetime;
+            colorOverLifetime.enabled = true;
+            var fade = new Gradient();
+            fade.SetKeys(
+                new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+                new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0f, 1f) });
+            colorOverLifetime.color = new ParticleSystem.MinMaxGradient(fade);
+
+            brakeDustMesh = new Mesh { name = "Polvo low poly" };
+            brakeDustMesh.vertices = new[]
+            {
+                new Vector3(-.5f, -.35f, -.35f), new Vector3(.5f, -.35f, -.35f),
+                new Vector3(0f, -.35f, .55f), new Vector3(0f, .6f, 0f)
+            };
+            brakeDustMesh.triangles = new[] { 0, 1, 2, 0, 3, 1, 1, 3, 2, 2, 3, 0 };
+            brakeDustMesh.RecalculateNormals();
+            var dustRenderer = emitter.GetComponent<ParticleSystemRenderer>();
+            dustRenderer.renderMode = ParticleSystemRenderMode.Mesh;
+            dustRenderer.mesh = brakeDustMesh;
+            dustRenderer.sharedMaterial = brakeDustMaterial;
+
+            var mark = new GameObject("Marca de frenada");
+            mark.transform.SetParent(transform, false);
+            mark.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
+            brakeMark = mark.AddComponent<LineRenderer>();
+            brakeMark.sharedMaterial = brakeDustMaterial;
+            brakeMark.useWorldSpace = true;
+            brakeMark.alignment = LineAlignment.TransformZ;
+            brakeMark.startWidth = .10f;
+            brakeMark.endWidth = .06f;
+            brakeMark.positionCount = 0;
+        }
+
+        private void AddBrakeContact(float age, float visualSpeed)
+        {
+            Vector3 contact = brakeRearWheel.position;
+            contact.y = riderShadow.position.y + .009f;
+            brakeMark.positionCount = ++brakeMarkPoints;
+            brakeMark.SetPosition(brakeMarkPoints - 1, contact);
+            if (visualSpeed <= 0f || age < nextBrakeParticle) return;
+
+            Vector3 velocity = transform.TransformDirection(new Vector3(-.65f, .65f, -.35f)) *
+                Mathf.Clamp(visualSpeed, .35f, 2f);
+            var particle = new ParticleSystem.EmitParams
+            {
+                position = contact,
+                velocity = velocity,
+                startColor = new Color32(218, 217, 210, 175),
+                startSize = .17f
+            };
+            brakeDust.Emit(particle, 2);
+            if (age < .14f)
+            {
+                particle.velocity = velocity * 1.8f;
+                particle.startColor = new Color32(255, 215, 134, 235);
+                particle.startSize = .045f;
+                particle.startLifetime = .10f;
+                brakeDust.Emit(particle, 1);
+            }
+            nextBrakeParticle = age + .035f;
+        }
+
+        private void UpdateBrakeSlide()
+        {
+            float age = Time.unscaledTime - brakeSlideStarted;
+            float progress = Mathf.Clamp01(age / BrakeSlideSeconds);
+            if (!float.IsNegativeInfinity(brakeSlideStarted))
+            {
+                // The integral of the normalized exponential keeps the visual drift decelerating to zero.
+                const float decay = 3.5f;
+                const float tail = .03019738f;
+                float exponential = Mathf.Exp(-decay * progress);
+                float travel = brakeInitialSpeed * BrakeSlideSeconds *
+                    ((1f - exponential) / decay - tail * progress) / (1f - tail);
+                float visualSpeed = brakeInitialSpeed * Mathf.Max(0f, (exponential - tail) / (1f - tail));
+                float driftScale = .16f * (.55f + .25f * progress);
+                float drift = travel * driftScale / Mathf.Max(1f, brakeInitialSpeed * .16f / 4.5f);
+                float turn = Mathf.SmoothStep(0f, 1f, progress / .55f);
+                float overshoot = 7f * Mathf.Sin(Mathf.PI * Mathf.Clamp01((progress - .42f) / .58f));
+                float lean = Mathf.SmoothStep(0f, 1f, progress / .48f);
+                Quaternion body = Quaternion.Euler(0f, 65f * turn + overshoot, -24f * lean);
+                Quaternion toLocal = Quaternion.Inverse(rider.localRotation);
+                brakeVisual.SetLocalPositionAndRotation(toLocal * new Vector3(drift, 0f, travel), toLocal *
+                    Quaternion.Slerp(rider.localRotation, body, turn));
+                Quaternion counterSteer = Quaternion.AngleAxis(-40f * turn, Vector3.up);
+                brakeBars.Apply(Vector3.zero, counterSteer);
+                brakeFork.Apply(Vector3.zero, counterSteer);
+                if (brakeFrontWheel != null)
+                    brakeFrontWheel.localRotation = counterSteer * brakeFrontSpin *
+                        Quaternion.AngleAxis(travel * Mathf.Rad2Deg / .45f, Vector3.right);
+                brakeTorso.Apply(Vector3.down * (.10f * lean), Quaternion.AngleAxis(14f * lean, Vector3.forward));
+                brakeHead.Apply(Vector3.down * (.07f * lean), Quaternion.Inverse(body));
+                brakeInnerLeg.Apply(new Vector3(.08f, -.08f, 0f) * lean, Quaternion.Euler(-11f * lean, 0f, 12f * lean));
+                brakeOuterLeg.Apply(Vector3.down * (.045f * lean), Quaternion.Euler(18f * lean, 0f, 0f));
+                Vector3 shadow = riderShadow.localPosition;
+                shadow.x = rider.localPosition.x + drift;
+                shadow.z = rider.localPosition.z + travel;
+                riderShadow.localPosition = shadow;
+
+                // Follow the visual slide so the scenery keeps scrolling as the run ends.
+                Vector3 cameraPosition = brakeCameraPosition + Vector3.forward * travel;
+                if (brakeCameraEffects)
+                {
+                    float envelope = progress < 1f
+                        ? Mathf.Sin(Mathf.PI * Mathf.SmoothStep(0f, 1f, progress))
+                        : 0f;
+                    float shake = Mathf.Sin(age * Mathf.PI * 14f) * .022f * envelope;
+                    cameraPosition += new Vector3(shake, shake * .3f, 0f);
+                    SetFieldOfView(brakeCameraFov - 3f * envelope);
+                }
+                worldCamera.transform.localPosition = cameraPosition;
+                if (brakeGroundEffects && brakeInitialSpeed > 0f) AddBrakeContact(age, visualSpeed);
+                if (progress >= 1f) brakeSlideStarted = float.NegativeInfinity;
+            }
+
+            if (float.IsNegativeInfinity(brakeMarkStarted)) return;
+            float markAge = Time.unscaledTime - brakeMarkStarted;
+            Color color = BrakeMarkColor;
+            color.a *= 1f - Mathf.InverseLerp(.55f, 2.5f, markAge);
+            brakeMark.startColor = brakeMark.endColor = color;
+            if (markAge >= 2.5f)
+            {
+                brakeMark.positionCount = 0;
+                brakeMarkStarted = float.NegativeInfinity;
+            }
+        }
+
         private void LateUpdate()
         {
+            UpdateBrakeSlide();
             UpdateDepthBend();
             if (refreshDepthBend)
             {

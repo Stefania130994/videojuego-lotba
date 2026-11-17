@@ -18,10 +18,18 @@ namespace Lotba.Game
         private UnityEngine.UI.Button previousQuality;
         private UnityEngine.UI.Image soundSwitch;
         private RectTransform soundSwitchKnob;
+        private TMPro.TMP_Text vibrationTestResult;
         [SerializeField] private TMPro.TMP_Text score, gems, resultTitle, resultStats;
         [SerializeField] private Sprite resultFlagIcon, resultWarningIcon, resultRecoverIcon, resultRetryIcon, resultHomeIcon;
         private TMPro.TMP_Text resultPoints;
         private readonly TMPro.TMP_Text[] resultRows = new TMPro.TMP_Text[5];
+        private UnityEngine.UI.Image endingBackground;
+        private CanvasGroup endingMessage, endingResults;
+        private TMPro.TMP_Text endingHeading, endingReflection;
+        private int endingHeadingCharacters, endingReflectionCharacters;
+        private float endingStarted;
+        private static readonly Color ResultsBackdrop = new Color32(12, 33, 50, 255);
+
         [SerializeField] private SpeedGauge gauge;
         [SerializeField] private RectTransform wordBanner;
         [SerializeField] private TMPro.TMP_Text wordLabel;
@@ -55,6 +63,7 @@ namespace Lotba.Game
         public void CloseTelemetry() => telemetryPanel?.Close();
         public event Action StartRequested, MenuRequested, PauseRequested, BrakeRequested, SoundRequested, SettingsRequested, VibrationRequested;
         public event Action<int> QualityRequested;
+        public event Action VibrationTestRequested;
         public event Action TurboRequested;
         public event Action UiClicked;
         public event Action<bool> SpeedChosen;
@@ -80,6 +89,7 @@ namespace Lotba.Game
             CreateSpeedOffer();
             StyleMainMenu();
             StyleSettings();
+            CreateEndingScreen();
             telemetryPanel = new RunTelemetryPanel(resultPanel, resultStats, menu);
             exit.gameObject.SetActive(Application.platform != RuntimePlatform.WebGLPlayer);
             exit.onClick.AddListener(ExitGame);
@@ -232,11 +242,114 @@ namespace Lotba.Game
             previousQuality.onClick.AddListener(() => QualityRequested?.Invoke(-1));
             MenuCaption("Anterior", previous, Vector2.zero, Vector2.one, "‹", 32f);
 
-            Label("Aviso", panel, new Vector2(.10f, .18f), new Vector2(.90f, .36f),
+            var notice = Label("Aviso", panel, new Vector2(.10f, .16f), new Vector2(.90f, .29f),
                 "Los cambios de sonido y vibración se aplican a esta partida.", 19f);
+            var debugToggle = DebugButton(panel, .31f, .39f, "MOSTRAR PRUEBA · SOLO PARA DEBUG");
+            var debugLabel = debugToggle.GetComponentInChildren<TMPro.TMP_Text>();
+            var debugSection = Region("Prueba de vibración", panel, new Vector2(.065f, .16f), new Vector2(.935f, .305f));
+            var testButton = DebugButton(debugSection, .48f, 1f, "PROBAR VIBRACIÓN");
+            vibrationTestResult = Label("Resultado de la prueba", debugSection, Vector2.zero, new Vector2(1f, .46f),
+                "Tocá el botón para solicitar un pulso.", 17f);
+            vibrationTestResult.richText = false;
+            debugSection.gameObject.SetActive(false);
+            debugToggle.onClick.AddListener(() =>
+            {
+                bool show = !debugSection.gameObject.activeSelf;
+                debugSection.gameObject.SetActive(show);
+                notice.gameObject.SetActive(!show);
+                debugLabel.text = show ? "OCULTAR PRUEBA · SOLO PARA DEBUG" : "MOSTRAR PRUEBA · SOLO PARA DEBUG";
+            });
+            testButton.onClick.AddListener(() => VibrationTestRequested?.Invoke());
             closeSettings.transform.SetParent(panel, false);
             StyleMenuButton(closeSettings, wideMenuButton, new Color32(67, 111, 148, 255),
                 new Vector2(.065f, .045f), new Vector2(.935f, .155f), "VOLVER", 27f);
+
+            UnityEngine.UI.Button DebugButton(Transform parent, float bottom, float top, string caption)
+            {
+                var rect = Region(caption, parent, new Vector2(.065f, bottom), new Vector2(.935f, top));
+                RoundedBackground(rect, new Color32(46, 97, 128, 255));
+                var image = rect.GetComponent<UnityEngine.UI.Image>();
+                image.raycastTarget = true;
+                var button = rect.gameObject.AddComponent<UnityEngine.UI.Button>();
+                button.targetGraphic = image;
+                MenuCaption("Etiqueta", rect, new Vector2(.04f, 0f), new Vector2(.96f, 1f), caption, 16f);
+                return button;
+            }
+        }
+
+        public void SetVibrationTestResult(string result) => vibrationTestResult.text = result;
+
+        private void CreateEndingScreen()
+        {
+            var screen = Region("Cierre de partida", resultPanel.transform.parent, Vector2.zero, Vector2.one);
+            endingBackground = Background(screen, Color.clear);
+            endingBackground.raycastTarget = true;
+
+            var message = Region("Mensaje LOTBA", screen, new Vector2(.09f, .30f), new Vector2(.91f, .70f));
+            endingMessage = message.gameObject.AddComponent<CanvasGroup>();
+            endingMessage.blocksRaycasts = false;
+            endingHeading = MenuCaption("Lema", message, new Vector2(0f, .52f), Vector2.one, string.Empty, 39f);
+            endingHeading.color = new Color32(169, 219, 246, 255);
+            endingReflection = Label("Reflexión", message, new Vector2(.03f, .1f), new Vector2(.97f, .54f),
+                string.Empty, 24f);
+            endingHeading.useMaxVisibleDescender = false;
+            endingReflection.useMaxVisibleDescender = false;
+
+            resultPanel.transform.SetParent(screen, false);
+            endingResults = resultPanel.AddComponent<CanvasGroup>();
+            screen.gameObject.SetActive(false);
+        }
+
+        private void RenderEnding(RunEnding ending, bool opening, GameSettings settings)
+        {
+            if (opening)
+            {
+                endingStarted = Time.unscaledTime;
+                endingBackground.gameObject.SetActive(true);
+                if (ending != RunEnding.RouteComplete)
+                {
+                    endingHeading.text = settings.EndingHeading;
+                    endingReflection.text = settings.EndingReflection;
+                    endingHeading.ForceMeshUpdate();
+                    endingReflection.ForceMeshUpdate();
+                    endingHeadingCharacters = endingHeading.textInfo.characterCount;
+                    endingReflectionCharacters = endingReflection.textInfo.characterCount;
+                }
+            }
+            if (ending == RunEnding.RouteComplete)
+            {
+                endingBackground.color = Color.clear;
+                endingMessage.alpha = 0f;
+                endingResults.alpha = 1f;
+                endingResults.interactable = endingResults.blocksRaycasts = true;
+                resultPanel.SetActive(!TelemetryOpen);
+                return;
+            }
+            float age = Time.unscaledTime - endingStarted;
+            float fadeStart = ending == RunEnding.Brake ? RunnerWorld.BrakeSlideSeconds : 0f;
+            float fadeDuration = ending == RunEnding.Brake ? settings.EndingBrakeFadeSeconds : 0f;
+            float blackoutAt = fadeStart + fadeDuration;
+            float blackout = fadeDuration > 0f
+                ? Mathf.SmoothStep(0f, 1f, (age - fadeStart) / fadeDuration)
+                : age >= blackoutAt ? 1f : 0f;
+            float messageAge = age - blackoutAt;
+            float charactersPerSecond = settings.EndingCharactersPerSecond;
+            float readingHold = settings.EndingReadingHoldSeconds;
+            int typed = Mathf.FloorToInt(Mathf.Max(0f, messageAge) * charactersPerSecond);
+            endingHeading.maxVisibleCharacters = Mathf.Min(endingHeadingCharacters, typed);
+            endingReflection.maxVisibleCharacters = Mathf.Clamp(typed - endingHeadingCharacters, 0, endingReflectionCharacters);
+            float resultsAge = messageAge - (endingHeadingCharacters + endingReflectionCharacters) / charactersPerSecond - readingHold;
+            float resultsFade = settings.EndingResultsFadeSeconds;
+            float reveal = resultsFade > 0f
+                ? Mathf.SmoothStep(0f, 1f, resultsAge / resultsFade)
+                : resultsAge >= 0f ? 1f : 0f;
+            endingMessage.alpha = 1f - reveal;
+            Color background = Color.Lerp(Color.black, ResultsBackdrop, reveal);
+            background.a = blackout;
+            endingBackground.color = background;
+            endingResults.alpha = reveal;
+            endingResults.interactable = endingResults.blocksRaycasts = reveal >= 1f;
+            resultPanel.SetActive(resultsAge >= 0f && !TelemetryOpen);
         }
 
         private TMPro.TextMeshProUGUI MenuCaption(string name, Transform parent, Vector2 min, Vector2 max,
@@ -561,6 +674,7 @@ namespace Lotba.Game
         public void ResetView()
         {
             SettingsOpen = false;
+            endingBackground.gameObject.SetActive(false);
             gemPulseUntil = 0f;
             previousGemBalance = -1;
             telemetryPanel?.SetReport(null);
@@ -627,12 +741,15 @@ namespace Lotba.Game
         {
             bool running = session.State == RunState.Running;
             bool active = running || session.State == RunState.Paused;
-            if (session.State == RunState.Finished) SettingsOpen = false;
+            bool finished = session.State == RunState.Finished;
+            bool openingEnding = finished && !endingBackground.gameObject.activeSelf;
+            if (finished) SettingsOpen = false;
             readyPanel.SetActive(session.State == RunState.Ready && !SettingsOpen);
             pausePanel.SetActive(session.State == RunState.Paused && !SettingsOpen);
             settingsPanel.SetActive(SettingsOpen);
-            telemetryPanel?.SetReport(session.State == RunState.Finished ? session.Telemetry : null);
-            resultPanel.SetActive(session.State == RunState.Finished && !TelemetryOpen);
+            telemetryPanel?.SetReport(finished ? session.Telemetry : null);
+            if (finished) RenderEnding(session.Ending, openingEnding, settings);
+            else resultPanel.SetActive(false);
             raceHud.SetActive(active); controls.SetActive(active);
             turboButton.interactable = running && !SettingsOpen && session.CanActivateTurbo;
             turboFill.fillAmount = session.BoostActive ? session.BoostProgress : session.TurboChargeProgress;
@@ -706,9 +823,14 @@ namespace Lotba.Game
                 vibrationLabel.text = devices.VibrationAvailable ? devices.VibrationLevelLabel : "NO DISPONIBLE";
                 vibrationLabel.color = devices.VibrationAvailable ? Color.white : new Color32(255, 156, 144, 255);
             }
-            if (session.State == RunState.Finished)
+            if (openingEnding)
             {
-                resultTitle.text = session.Ending == RunEnding.Brake ? "VOS MARCASTE\nEL FINAL" : "RECORRIDO\nCOMPLETADO";
+                resultTitle.text = session.Ending switch
+                {
+                    RunEnding.Brake => "VOS MARCASTE\nEL FINAL",
+                    RunEnding.Overload => "FIN DE LA\nPARTIDA",
+                    _ => "RECORRIDO\nCOMPLETADO"
+                };
                 resultPoints.text = $"{session.Score:N0} PUNTOS";
                 resultRows[0].text = $"Recorriste <color=#84CCF4><b>{session.Distance / 1000f:0.0#} km</b></color>";
                 resultRows[1].text = $"Recolectaste <color=#84CCF4><b>{session.Gems} gemas</b></color>";

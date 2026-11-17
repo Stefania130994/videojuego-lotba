@@ -13,6 +13,7 @@ namespace Lotba.Game
         [SerializeField] private DeviceFeedbackAndInput devices;
         private RunSession session;
         private bool startRequested, brakeRequested, jumpRequested, pauseRequested, menuRequested;
+        private bool overloadRequested;
         private int laneRequested;
         private bool? speedChoiceRequested;
         private bool muted, trackingSwipe;
@@ -38,6 +39,7 @@ namespace Lotba.Game
             hud.PauseRequested += RequestPause; hud.MenuRequested += RequestMenu;
             hud.SoundRequested += ToggleSound; hud.SettingsRequested += OpenSettings;
             hud.VibrationRequested += devices.CycleVibrationLevel;
+            hud.VibrationTestRequested += TestVibration;
             hud.QualityRequested += CycleQuality;
             hud.SpeedChosen += ChooseSpeed;
             hud.TurboRequested += ActivateTurbo;
@@ -68,6 +70,8 @@ namespace Lotba.Game
         }
         private void LateUpdate()
         {
+            bool endForOverload = overloadRequested;
+            overloadRequested = false;
             world.ConfigureDepthBend(IsHighQuality);
             if (menuRequested && (session.State == RunState.Finished || session.State == RunState.Paused))
             {
@@ -86,14 +90,13 @@ namespace Lotba.Game
             {
                 ResetRun(true);
             }
+            bool wasFinished = session.State == RunState.Finished;
+            float speedBeforeBrake = brakeRequested ? session.Speed : 0f;
             if (brakeRequested)
             {
-                RunState previous = session.State;
                 session.Brake();
-                audioFeedback.Stop();
-                if (previous != RunState.Finished && session.State == RunState.Finished) audioFeedback.PlayBrakeButton();
-                devices.CancelFeedback();
             }
+            else if (endForOverload) session.EndForOverload();
             else
             {
                 if (pauseRequested)
@@ -131,16 +134,16 @@ namespace Lotba.Game
                     }
                 }
             }
-            if (session.State == RunState.Finished)
+            if (!wasFinished && session.State == RunState.Finished)
             {
-                audioFeedback.Stop();
-                world.ClearImpactBlink();
-                world.ClearTurboAura();
-                world.ClearGemScatter();
+                bool braked = session.Ending == RunEnding.Brake;
+                audioFeedback.EndRun(braked);
+                devices.CancelFeedback();
+                world.EndRun(braked, speedBeforeBrake, UseBoostCamera);
             }
             devices.UpdateBoostFeedback(session.State == RunState.Running
                 ? session.BoostProgress * RunSession.BoostSeconds : 0f);
-            audioFeedback.UpdateMusic(session.State);
+            if (session.State != RunState.Finished) audioFeedback.UpdateMusic(session.State);
             speedChoiceRequested = null;
             startRequested = brakeRequested = jumpRequested = pauseRequested = menuRequested = false; laneRequested = 0;
             hud.Render(session, settings, muted, devices, IsHighQuality);
@@ -187,6 +190,7 @@ namespace Lotba.Game
         }
         private void RequestStart() => startRequested = true;
         private void RequestBrake() => brakeRequested = true;
+        public void RequestOverloadEnd() => overloadRequested = true;
         private void ActivateTurbo()
         {
             if (!brakeRequested && !hud.SettingsOpen && session.TryActivateTurbo())
@@ -260,6 +264,8 @@ namespace Lotba.Game
             session.Pause(); trackingSwipe = false; laneRequested = 0; jumpRequested = false;
             devices.CancelFeedback(); audioFeedback.Stop();
         }
+        private void TestVibration() => hud.SetVibrationTestResult(devices.TestVibration());
+
         private void OnDestroy()
         {
             if (hud == null) return;
@@ -267,6 +273,7 @@ namespace Lotba.Game
             hud.PauseRequested -= RequestPause; hud.MenuRequested -= RequestMenu;
             hud.SoundRequested -= ToggleSound; hud.SettingsRequested -= OpenSettings;
             hud.VibrationRequested -= devices.CycleVibrationLevel;
+            hud.VibrationTestRequested -= TestVibration;
             hud.QualityRequested -= CycleQuality;
             hud.SpeedChosen -= ChooseSpeed;
             hud.TurboRequested -= ActivateTurbo;

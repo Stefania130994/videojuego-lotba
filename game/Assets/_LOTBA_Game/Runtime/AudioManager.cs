@@ -131,7 +131,14 @@ namespace Lotba.Game
         public void PlayBoostStart() => Play(boostStart, boostStartVolume);
         public void PlayBoostReady() => Play(boostReady, boostReadyVolume);
         public void PlayUiClick() => PlayInterface(uiClick, uiClickVolume);
-        public void PlayBrakeButton() => PlayInterface(brakeButton, brakeButtonVolume);
+        public void EndRun(bool playBrake)
+        {
+            Stop();
+            musicSource.Stop();
+            musicSource.clip = null;
+            interfaceSource.Stop();
+            if (playBrake) PlayInterface(brakeButton, brakeButtonVolume);
+        }
         public void PlayBoostButton() => PlayInterface(boostButton, boostButtonVolume);
 
         private void PlayInterface(AudioClip clip, float volume)
